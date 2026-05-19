@@ -128,6 +128,19 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
+        // ---- Diagnostic FMP ----
+        if (p === '/api/debug-fmp') {
+            const ticker = parsed.searchParams.get('t') || 'MC.PA';
+            const apiKey = process.env.FMP_API_KEY;
+            if (!apiKey) return json(res, { error: 'FMP_API_KEY non définie', env: Object.keys(process.env).filter(k => k.startsWith('FMP')) });
+            const url = `https://financialmodelingprep.com/api/v3/key-metrics/${encodeURIComponent(ticker)}?limit=1&apikey=${apiKey}`;
+            try {
+                const r = await fetch(url, { headers: { 'User-Agent': UA } });
+                const text = await r.text();
+                return json(res, { status: r.status, ticker, url: url.replace(apiKey, 'HIDDEN'), body: text.slice(0, 500) });
+            } catch(e) { return json(res, { error: e.message }); }
+        }
+
         // ---- EPS via Financial Modeling Prep (cache 24h) ----
         if (p.startsWith('/api/eps/')) {
             const ticker = decodeURIComponent(p.replace('/api/eps/', ''));
