@@ -1346,7 +1346,12 @@
 
                 let historyHtml = p.history.map(t => `
                     <tr class="border-b border-gray-50 hover:bg-gray-100">
-                        <td class="px-3 py-2 text-center"><i class="ph-bold ph-pencil-simple cursor-pointer text-blue-500 hover:text-blue-700" onclick="window.editTransaction(${t.id}, '${port}')"></i></td>
+                        <td class="px-3 py-2 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <i class="ph-bold ph-pencil-simple cursor-pointer text-blue-500 hover:text-blue-700" title="Modifier" onclick="window.editTransaction(${t.id}, '${port}')"></i>
+                                <i class="ph-bold ph-trash cursor-pointer text-red-400 hover:text-red-600" title="Supprimer" onclick="window.deleteTransactionDirect(${t.id})"></i>
+                            </div>
+                        </td>
                         <td class="px-3 py-2">${new Date(t.date).toLocaleDateString('fr-FR')}</td>
                         <td class="px-3 py-2 ${t.type === 'Achat' ? 'text-blue-600' : 'text-orange-500'} font-medium">${t.type}</td>
                         <td class="px-3 py-2 text-right">${numFmt.format(t.qty)}</td>
@@ -1627,6 +1632,14 @@
                 allTransactions = allTransactions.filter(t => t.id !== editingTxId);
                 window.showToast("Transaction supprimée."); window.closeTxModal(); window.renderDashboard(); await window.saveDataToFirebase();
             }
+        };
+
+        window.deleteTransactionDirect = async function(id) {
+            if (!confirm("Supprimer cette transaction ?")) return;
+            allTransactions = allTransactions.filter(t => t.id !== id);
+            window.showToast("Transaction supprimée.");
+            window.renderDashboard();
+            await window.saveDataToFirebase();
         };
 
         window.handleTransactionSubmit = async function(e) {
