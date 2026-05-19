@@ -241,6 +241,13 @@
                                 <span class="text-gray-500 font-medium">%</span>
                             </label>
                             <label class="flex items-center gap-1.5 text-sm text-gray-600">
+                                Versement / mois
+                                <input type="number" id="compound-monthly" value="0" min="0" step="50"
+                                    oninput="window.updateCompoundChart()"
+                                    class="w-20 border border-gray-300 rounded-lg px-2 py-1 text-sm text-right focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                                <span class="text-gray-500 font-medium">€</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 text-sm text-gray-600">
                                 Horizon
                                 <input type="number" id="compound-years" value="10" min="1" max="50" step="1"
                                     oninput="window.updateCompoundChart()"
@@ -248,6 +255,11 @@
                                 <span class="text-gray-500 font-medium">ans</span>
                             </label>
                         </div>
+                    </div>
+                    <div id="compound-div-note" class="flex flex-wrap gap-3 mb-3 text-[11px] text-gray-400 italic hidden">
+                        <span><i class="ph-fill ph-currency-dollar text-green-400"></i> Dividendes PEA réinvestis : <span id="compound-div-pea-pct" class="font-semibold text-green-600">0%</span>/an</span>
+                        <span class="text-gray-200">|</span>
+                        <span><i class="ph-fill ph-currency-dollar text-purple-400"></i> Dividendes CTO réinvestis : <span id="compound-div-cto-pct" class="font-semibold text-purple-600">0%</span>/an</span>
                     </div>
                     <div class="relative h-72 w-full mb-5">
                         <canvas id="recapCompoundChart"></canvas>
@@ -1001,7 +1013,7 @@
         const typeColors = { "Revenus": "blue", "Dépenses fixes": "red", "Dépenses variables": "orange", "Économies": "emerald", "Dettes": "purple" };
 
         let recapPieChartInstance = null, recapGlobalPieChartInstance = null, recapDivHistoryChart = null, recapDivForecastChart = null, recapCompoundChart = null;
-        let compoundPeaVal = 0, compoundCtoVal = 0;
+        let compoundPeaVal = 0, compoundCtoVal = 0, compoundAnnualDivPea = 0, compoundAnnualDivCto = 0;
         let activeLineCharts = { pea: null, cto: null }, pieCharts = { pea: null, cto: null }, dividendCharts = { pea: null, cto: null };
         const chartCache = {}; // { [ticker]: { [range]: { data: {...}, ts: epoch_ms } } }
         const CHART_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -1078,16 +1090,38 @@
         }
 
         window.updateCompoundChart = function() {
-            const yearsInput = document.getElementById('compound-years');
-            const rateInput  = document.getElementById('compound-rate');
-            const years = Math.min(Math.max(parseInt(yearsInput?.value) || 10, 1), 50);
-            const rate  = Math.min(Math.max(parseFloat(rateInput?.value) || 7, 0), 50) / 100;
+            const years   = Math.min(Math.max(parseInt(document.getElementById('compound-years')?.value)   || 10,  1), 50);
+            const rate    = Math.min(Math.max(parseFloat(document.getElementById('compound-rate')?.value)  ||  7,  0), 50) / 100;
+            const monthly = Math.max(parseFloat(document.getElementById('compound-monthly')?.value) || 0, 0);
 
-            const labels = Array.from({ length: years + 1 }, (_, i) => i === 0 ? "Auj." : `+${i}a`);
-            const calcSeries = v0 => Array.from({ length: years + 1 }, (_, t) => +(v0 * Math.pow(1 + rate, t)).toFixed(2));
-            const peaData   = calcSeries(compoundPeaVal);
-            const ctoData   = calcSeries(compoundCtoVal);
+            // Taux effectif annuel = taux marché + rendement dividendes réinvestis
+            const totalVal = compoundPeaVal + compoundCtoVal;
+            const divYieldPea = (compoundPeaVal > 0 && compoundAnnualDivPea > 0) ? compoundAnnualDivPea / compoundPeaVal : 0;
+            const divYieldCto = (compoundCtoVal > 0 && compoundAnnualDivCto > 0) ? compoundAnnualDivCto / compoundCtoVal : 0;
+            const effectiveRatePea = rate + divYieldPea;
+            const effectiveRateCto = rate + divYieldCto;
+
+            // Répartition mensuelle proportionnelle à la valeur de chaque portefeuille
+            const peaShare = totalVal > 0 ? compoundPeaVal / totalVal : 0.5;
+            const monthlyPea = monthly * peaShare;
+            const monthlyCto = monthly * (1 - peaShare);
+
+            // Simulation mois par mois pour chaque portefeuille
+            function calcSeries(v0, annualRate, monthlyContrib) {
+                const rm = Math.pow(1 + annualRate, 1 / 12) - 1;
+                const pts = [+v0.toFixed(2)];
+                let v = v0;
+                for (let y = 1; y <= years; y++) {
+                    for (let m = 0; m < 12; m++) v = v * (1 + rm) + monthlyContrib;
+                    pts.push(+v.toFixed(2));
+                }
+                return pts;
+            }
+
+            const peaData   = calcSeries(compoundPeaVal, effectiveRatePea, monthlyPea);
+            const ctoData   = calcSeries(compoundCtoVal, effectiveRateCto, monthlyCto);
             const totalData = peaData.map((v, i) => +(v + ctoData[i]).toFixed(2));
+            const labels    = Array.from({ length: years + 1 }, (_, i) => i === 0 ? 'Auj.' : `+${i}a`);
 
             if (recapCompoundChart) {
                 recapCompoundChart.data.labels = labels;
@@ -1097,16 +1131,31 @@
                 recapCompoundChart.update();
             }
 
-            const fmt = v => eurFmt.format(v);
-            const gain = (v0, vEnd) => v0 > 0 ? `+${eurFmt.format(vEnd - v0)} (×${(vEnd / v0).toFixed(2)})` : '';
-            const peaEnd = peaData[years], ctoEnd = ctoData[years], totalEnd = totalData[years];
+            // Note dividendes réinvestis
+            const noteEl = document.getElementById('compound-div-note');
+            if (noteEl) {
+                const hasDivs = divYieldPea > 0 || divYieldCto > 0;
+                noteEl.classList.toggle('hidden', !hasDivs);
+                const pctFmtSimple = v => (v * 100).toFixed(2) + ' %';
+                const dPea = document.getElementById('compound-div-pea-pct'); if (dPea) dPea.innerText = pctFmtSimple(divYieldPea);
+                const dCto = document.getElementById('compound-div-cto-pct'); if (dCto) dCto.innerText = pctFmtSimple(divYieldCto);
+            }
+
+            // Résumé bas de page
             const setEl = (id, txt) => { const el = document.getElementById(id); if (el) el.innerText = txt; };
-            setEl('compound-pea-end',    compoundPeaVal  > 0 ? fmt(peaEnd)   : '-');
-            setEl('compound-cto-end',    compoundCtoVal  > 0 ? fmt(ctoEnd)   : '-');
-            setEl('compound-total-end',  (compoundPeaVal + compoundCtoVal) > 0 ? fmt(totalEnd) : '-');
-            setEl('compound-pea-gain',   gain(compoundPeaVal, peaEnd));
-            setEl('compound-cto-gain',   gain(compoundCtoVal, ctoEnd));
-            setEl('compound-total-gain', gain(compoundPeaVal + compoundCtoVal, totalEnd));
+            const fmt  = v => eurFmt.format(v);
+            const gain = (v0, added, vEnd) => {
+                if (vEnd <= 0) return '';
+                const totalIn = v0 + added * 12 * years;
+                return `+${fmt(vEnd - totalIn)} de rendement (×${totalIn > 0 ? (vEnd / totalIn).toFixed(2) : '∞'})`;
+            };
+            const peaEnd = peaData[years], ctoEnd = ctoData[years], totalEnd = totalData[years];
+            setEl('compound-pea-end',    compoundPeaVal > 0 || monthlyPea > 0 ? fmt(peaEnd)   : '-');
+            setEl('compound-cto-end',    compoundCtoVal > 0 || monthlyCto > 0 ? fmt(ctoEnd)   : '-');
+            setEl('compound-total-end',  totalVal > 0 || monthly > 0          ? fmt(totalEnd) : '-');
+            setEl('compound-pea-gain',   gain(compoundPeaVal, monthlyPea, peaEnd));
+            setEl('compound-cto-gain',   gain(compoundCtoVal, monthlyCto, ctoEnd));
+            setEl('compound-total-gain', gain(totalVal, monthly, totalEnd));
             document.querySelectorAll('.compound-years-label').forEach(el => el.innerText = years);
         };
 
@@ -1513,14 +1562,14 @@
                 recapGlobalPieChartInstance.update();
             }
             if (recapDivHistoryChart) { recapDivHistoryChart.data.datasets[0].data = [divHistPEA, divHistCTO]; recapDivHistoryChart.update(); }
-            if (recapDivForecastChart) {
-                let fPea = 0, fCto = 0;
-                peaData.positions.forEach(p => { fPea += p.qty * (stockDatabase[p.ticker]?.div?.annual || 0); });
-                ctoData.positions.forEach(p => { fCto += p.qty * (stockDatabase[p.ticker]?.div?.annual || 0); });
-                recapDivForecastChart.data.datasets[0].data = [fPea, fCto]; recapDivForecastChart.update();
-            }
-            compoundPeaVal = peaVal;
-            compoundCtoVal = ctoVal;
+            let fPea = 0, fCto = 0;
+            peaData.positions.forEach(p => { fPea += p.qty * (stockDatabase[p.ticker]?.div?.annual || 0); });
+            ctoData.positions.forEach(p => { fCto += p.qty * (stockDatabase[p.ticker]?.div?.annual || 0); });
+            if (recapDivForecastChart) { recapDivForecastChart.data.datasets[0].data = [fPea, fCto]; recapDivForecastChart.update(); }
+            compoundPeaVal       = peaVal;
+            compoundCtoVal       = ctoVal;
+            compoundAnnualDivPea = fPea;
+            compoundAnnualDivCto = fCto;
             window.updateCompoundChart();
         }
 
