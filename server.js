@@ -128,25 +128,14 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
-        // ---- Diagnostic chart earnings ----
-        if (p === '/api/debug-earnings') {
-            const ticker = parsed.searchParams.get('t') || 'MC.PA';
-            try {
-                const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=5y&interval=3mo&events=earnings&includePrePost=false`;
-                const data = await yFetch(url);
-                const events = data?.chart?.result?.[0]?.events?.earnings || {};
-                return json(res, { count: Object.keys(events).length, events });
-            } catch(e) { return json(res, { error: e.message }); }
-        }
-
-        // ---- EPS via Finnhub (cache 24h) ----
+        // ---- EPS (cache 24h) ----
         if (p.startsWith('/api/eps/')) {
             const ticker = decodeURIComponent(p.replace('/api/eps/', ''));
             const cacheKey = `eps:${ticker}`;
             const hit = getCached(cacheKey, 24 * 60 * 60 * 1000);
             if (hit) return json(res, hit);
 
-            // Tentative 1 : earnings events du chart Yahoo (US stocks, sans auth)
+            // Tentative 1 : earnings events du chart Yahoo (US stocks)
             try {
                 const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=4y&interval=3mo&events=earnings&includePrePost=false`;
                 const chartData = await yFetch(chartUrl);
@@ -168,20 +157,36 @@ http.createServer(async (req, res) => {
                 }
             } catch(e) { console.error('[eps chart]', e.message); }
 
-            // Tentative 2 : Finnhub basic financials (EU + US, nécessite FINNHUB_API_KEY)
-            if (process.env.FINNHUB_API_KEY) {
-                try {
-                    const fhUrl = `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all&token=${process.env.FINNHUB_API_KEY}`;
-                    const fhData = await yFetch(fhUrl);
-                    const m = fhData?.metric;
-                    const eps = m?.epsBasicExclExtraItemsTTM ?? m?.epsNormalizedAnnual ?? null;
+            // Tentative 2 : TradingView screener (actions EU, sans auth)
+            try {
+                const tvMap = {
+                    '.PA': ['france',      s => `EURONEXT:${s}`],
+                    '.DE': ['germany',     s => `XETR:${s}`],
+                    '.L':  ['uk',          s => `LSE:${s}`],
+                    '.MI': ['italy',       s => `MIL:${s}`],
+                    '.AS': ['netherlands', s => `EURONEXT:${s}`],
+                    '.BR': ['belgium',     s => `EURONEXT:${s}`],
+                    '.MC': ['spain',       s => `BME:${s}`],
+                };
+                const ext = Object.keys(tvMap).find(k => ticker.endsWith(k));
+                if (ext) {
+                    const [market, toTv] = tvMap[ext];
+                    const base = ticker.slice(0, -ext.length);
+                    const tvSymbol = toTv(base);
+                    const r = await fetch(`https://scanner.tradingview.com/${market}/scan`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
+                        body: JSON.stringify({ symbols: { tickers: [tvSymbol] }, columns: ['earnings_per_share_basic_ttm'] }),
+                    });
+                    const tvData = await r.json();
+                    const eps = tvData?.data?.[0]?.d?.[0];
                     if (typeof eps === 'number') {
                         const result = { eps, periods: 1 };
                         setCache(cacheKey, result);
                         return json(res, result);
                     }
-                } catch(e) { console.error('[eps finnhub]', e.message); }
-            }
+                }
+            } catch(e) { console.error('[eps tv]', e.message); }
 
             const empty = { eps: null, periods: 0 };
             setCache(cacheKey, empty);
