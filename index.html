@@ -881,62 +881,20 @@
             setTimeout(() => toast.remove(), 3300);
         };
 
-        async function fetchDirect(url, timeoutMs = 6000) {
-            const ctrl = new AbortController(); const tid = setTimeout(() => ctrl.abort(), timeoutMs);
-            try { 
-                const r = await fetch(url, { signal: ctrl.signal }); 
-                clearTimeout(tid); 
-                if (r.ok) {
-                    try { return await r.json(); } catch(e) { return null; }
-                } 
-            } catch (e) { clearTimeout(tid); }
-            return null;
-        }
-
-        async function fetchWithProxy(url, timeoutPerProxy = 5000) {
-            const proxies = [
-                { url: `https://api.allorigins.win/get?url=`, type: 'json' },
-                { url: `https://api.codetabs.com/v1/proxy?quest=`, type: 'raw' },
-                { url: `https://corsproxy.io/?`, type: 'raw' }
-            ];
-            
-            for (const proxy of proxies) {
-                try {
-                    const ctrl = new AbortController();
-                    const tid = setTimeout(() => ctrl.abort(), timeoutPerProxy);
-                    const fetchUrl = proxy.url + encodeURIComponent(url);
-                    const r = await fetch(fetchUrl, { signal: ctrl.signal });
-                    clearTimeout(tid);
-                    
-                    if (r.ok) {
-                        if (proxy.type === 'json') {
-                            const data = await r.json();
-                            try { return JSON.parse(data.contents); } catch(e) { throw new Error("Invalid JSON"); }
-                        } else {
-                            try { return await r.json(); } catch(e) { throw new Error("Not JSON"); }
-                        }
-                    }
-                } catch (e) {
-                    // Passe au proxy suivant silencieusement
-                }
-            }
-            throw new Error('All proxies failed');
+        async function apiFetch(path) {
+            const r = await fetch(path);
+            if (!r.ok) throw new Error(`API ${r.status}`);
+            return r.json();
         }
         
         async function fetchExchangeRate() {
             try {
-                const r = await fetch('https://open.er-api.com/v6/latest/USD');
-                if (r.ok) {
-                    const data = await r.json();
-                    if (data && data.rates && data.rates.EUR) {
-                        usdToEurRate = data.rates.EUR;
-                        const usdDisplays = document.querySelectorAll('.usd-rate-display');
-                        usdDisplays.forEach(el => el.innerText = `USD/EUR: ${usdToEurRate.toFixed(4)}`);
-                    }
+                const data = await apiFetch('/api/rate');
+                if (data?.rates?.EUR) {
+                    usdToEurRate = data.rates.EUR;
+                    document.querySelectorAll('.usd-rate-display').forEach(el => el.innerText = `USD/EUR: ${usdToEurRate.toFixed(4)}`);
                 }
-            } catch (e) {
-                console.warn("Impossible de récupérer le taux USD/EUR");
-            }
+            } catch (e) {}
         }
 
         // ==========================================
@@ -961,19 +919,15 @@
                     let validQuotes = [];
                     
                     try {
-                        const searchUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&lang=fr-FR&quotesCount=8&newsCount=0&enableFuzzyQuery=true`;
-                        let data = await fetchDirect(searchUrl, 2000);
-                        if (!data) data = await fetchWithProxy(searchUrl, 4000);
-                        
-                        if (data && data.quotes) {
+                        const data = await apiFetch(`/api/search?q=${encodeURIComponent(query)}`);
+                        if (data?.quotes) {
                             validQuotes = data.quotes.filter(q => q.quoteType === 'EQUITY' || q.quoteType === 'ETF' || q.quoteType === 'MUTUALFUND');
                         }
                     } catch(e) {}
 
                     if (validQuotes.length === 0) {
-                        const tvUrl = `https://symbol-search.tradingview.com/symbol_search/v3/?text=${encodeURIComponent(query)}&hl=1&exchange=&type=stock,fund,dr&domain=production`;
-                        let tvData = await fetchDirect(tvUrl, 3000);
-                        if (!tvData) tvData = await fetchWithProxy(tvUrl, 4000);
+                        let tvData = null;
+                        try { tvData = await apiFetch(`/api/tvsearch?q=${encodeURIComponent(query)}`); } catch(e) {}
                         
                         if (tvData && Array.isArray(tvData)) {
                             validQuotes = tvData.map(q => {
@@ -1712,9 +1666,8 @@
         // ==========================================
         async function fetchBatchQuote(tickers) {
             const symbols = tickers.join(',');
-            const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}&fields=marketCap,sharesOutstanding,trailingPE,forwardPE,epsTrailingTwelveMonths,regularMarketPrice,currency,shortName,longName,exchange,exchangeName`;
-            let data = await fetchDirect(url, 4000);
-            if (!data) { try { data = await fetchWithProxy(url, 6000); } catch(e){} }
+            let data;
+            try { data = await apiFetch(`/api/quote?symbols=${encodeURIComponent(symbols)}`); } catch(e) { return; }
             if (!data?.quoteResponse?.result) return;
             
             data.quoteResponse.result.forEach(q => {
@@ -1743,8 +1696,8 @@
             if (range === '1y' || range === '2y') interval = '1wk';
             else interval = '1mo';
 
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${range}&interval=${interval}&events=dividends&includePrePost=false`;
-            let data = await fetchDirect(url, 4000); if (!data) { try { data = await fetchWithProxy(url, 6000); } catch(e){} }
+            let data;
+            try { data = await apiFetch(`/api/chart/${ticker}?range=${range}&interval=${interval}`); } catch(e) { return; }
             if (!data?.chart?.result?.[0]) return;
 
             const res  = data.chart.result[0]; const meta = res.meta || {};
@@ -1834,95 +1787,21 @@
             if (cached.exchange && (!db.exchange || db.exchange === '-')) db.exchange = cached.exchange;
         }
 
-        // --- NOUVEAU: Fallback asynchrone Google Finance Ultra-Robuste ---
-        async function fetchMetricsGoogleFallback(ticker) {
-            const db = stockDatabase[ticker];
-            if (!db) return;
-            
-            try {
-                // Conversion intelligente du Ticker Yahoo -> Google
-                const parts = ticker.split('.');
-                const exMap = { 'PA':'EPA', 'AS':'AMS', 'MI':'BIT', 'MC':'BME', 'DE':'ETR', 'L':'LON', 'NX':'Euronext', 'BR':'EBR', 'LS':'ELI', 'ST':'STO' };
-                let gTicker = parts.length > 1 ? `${parts[0]}:${exMap[parts[1]] || parts[1]}` : `${parts[0]}:NASDAQ`;
-                if (parts.length === 1 && ticker.length <= 4) gTicker = `${ticker}:NYSE`; // Fallback US
-                
-                const targetUrl = encodeURIComponent(`https://www.google.com/finance/quote/${gTicker}?hl=fr`);
-                let html = '';
-                
-                // Fonction de Fetch avec Timeout pour ne jamais bloquer
-                const fetchWithTimeout = async (url) => {
-                    const ctrl = new AbortController();
-                    const tid = setTimeout(() => ctrl.abort(), 3500);
-                    try {
-                        const r = await fetch(url, { signal: ctrl.signal });
-                        clearTimeout(tid);
-                        return r;
-                    } catch(e) {
-                        clearTimeout(tid);
-                        throw e;
-                    }
-                };
-
-                // Essai 1 via proxy texte brut
-                try {
-                    const r = await fetchWithTimeout(`https://corsproxy.io/?${targetUrl}`);
-                    if (r.ok) html = await r.text();
-                } catch(e) {}
-                
-                // Essai 2 via proxy JSON (allorigins)
-                if (!html || html.length < 1000) {
-                    try {
-                        const r2 = await fetchWithTimeout(`https://api.allorigins.win/get?url=${targetUrl}`);
-                        if (r2.ok) {
-                            const json = await r2.json();
-                            html = json.contents;
-                        }
-                    } catch(e) {}
-                }
-                
-                if (!html) return;
-
-                // Fallback EPS via Google si non trouvé
-                if (db.eps === '-' || !db.eps) {
-                    const epsMatch = html.match(/(?:Bénéfice par action|EPS)<\/div>[\s\S]*?<div class="[^"]*">([^<]+)<\/div>/i);
-                    if (epsMatch && !epsMatch[1].includes('<')) {
-                        const val = epsMatch[1].replace(/&nbsp;/g, ' ').trim();
-                        if (val && val !== '-') db.eps = val;
-                    }
-                }
-                
-            } catch(e) {
-                console.warn("Erreur Google Finance Fallback", e);
-            }
+        function refreshAnalysisPanel() {
+            ['pea', 'cto'].forEach(port => {
+                const sel = document.getElementById(`${port}-stock-select`);
+                if (sel?.value) window.updateStockData(port, sel.value);
+            });
         }
 
-        function refreshAnalysisPanel() { 
-            ['pea', 'cto'].forEach(port => { 
-                const sel = document.getElementById(`${port}-stock-select`); 
-                if (sel?.value) window.updateStockData(port, sel.value); 
-            }); 
-        }
-
-        // Moteur de rendu progressif pour des performances optimales
         async function fetchLivePrices() {
             await fetchExchangeRate();
             const tickers = Object.keys(stockDatabase); if (!tickers.length) return;
-            
-            // Lancement PARALLELE : Base rapide (Yahoo) + Sécurité fiable (Google Finance)
-            const quotePromise = fetchBatchQuote(tickers); 
-            const googlePromises = Promise.allSettled(tickers.map(t => fetchMetricsGoogleFallback(t)));
-            
-            // On attend au moins les prix pour l'affichage initial immédiat
-            await quotePromise;
-            window.renderDashboard(); 
+
+            await fetchBatchQuote(tickers);
+            window.renderDashboard();
             refreshAnalysisPanel();
-            
-            // Dès que Google a répondu (1 à 2 secondes plus tard), l'UI se met à jour
-            googlePromises.then(() => {
-                refreshAnalysisPanel(); 
-            });
-            
-            // Chargement des historiques uniquement pour le ticker affiché dans chaque onglet
+
             const historyFetches = [];
             ['pea', 'cto'].forEach(port => {
                 const sel = document.getElementById(`${port}-stock-select`);
@@ -1931,7 +1810,6 @@
             });
             await Promise.allSettled(historyFetches);
 
-            // Mise à jour finale pour afficher les lignes des graphiques
             window.renderDashboard();
             refreshAnalysisPanel();
         }
