@@ -133,11 +133,18 @@ http.createServer(async (req, res) => {
             const ticker = parsed.searchParams.get('t') || 'MC.PA';
             const key = process.env.FINNHUB_API_KEY;
             if (!key) return json(res, { error: 'FINNHUB_API_KEY non définie' });
-            try {
-                const r = await fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all&token=${key}`, { headers: { 'User-Agent': UA } });
-                const text = await r.text();
-                return json(res, { status: r.status, body: JSON.parse(text) });
-            } catch(e) { return json(res, { error: e.message }); }
+            const results = {};
+            for (const ep of ['earnings', 'stock/earnings']) {
+                try {
+                    const url = ep === 'earnings'
+                        ? `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(ticker)}&token=${key}`
+                        : `https://finnhub.io/api/v1/stock/eps?symbol=${encodeURIComponent(ticker)}&token=${key}`;
+                    const r = await fetch(url, { headers: { 'User-Agent': UA } });
+                    const text = await r.text();
+                    results[ep] = { status: r.status, body: text.slice(0, 500) };
+                } catch(e) { results[ep] = { error: e.message }; }
+            }
+            return json(res, results);
         }
 
         // ---- EPS via Finnhub (cache 24h) ----
