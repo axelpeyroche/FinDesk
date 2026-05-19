@@ -2,7 +2,6 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
-const nodemailer = require('nodemailer');
 
 const PORT = process.env.PORT || 3000;
 const cache = new Map();
@@ -127,42 +126,47 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
-        // ---- Envoi email identifiants (POST) ----
+        // ---- Envoi email identifiants via Resend API (POST) ----
         if (p === '/api/send-email' && req.method === 'POST') {
             const { to, username, password, appUrl } = await parseBody(req);
             if (!to || !username) return json(res, { error: 'Paramètres manquants (to, username)' }, 400);
-            if (!process.env.GMAIL_USER || !process.env.GMAIL_PASS) {
-                return json(res, { error: 'Variables GMAIL_USER / GMAIL_PASS non configurées sur Render (onglet Environment)' }, 500);
+            if (!process.env.RESEND_API_KEY) {
+                return json(res, { error: 'Variable RESEND_API_KEY non configurée sur Render (onglet Environment)' }, 500);
             }
+            const fromAddress = process.env.RESEND_FROM || 'FinDesk <onboarding@resend.dev>';
+            const htmlBody = `
+                <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px;background:#f8fafc;border-radius:12px">
+                    <h2 style="color:#1d4ed8;margin-bottom:8px">FinDesk</h2>
+                    <p style="color:#374151">Bonjour,</p>
+                    <p style="color:#374151">Votre compte FinDesk a été créé. Voici vos identifiants&nbsp;:</p>
+                    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin:20px 0">
+                        <p style="margin:4px 0;color:#374151"><strong>Identifiant&nbsp;:</strong> ${username}</p>
+                        <p style="margin:4px 0;color:#374151"><strong>Mot de passe&nbsp;:</strong> ${password}</p>
+                    </div>
+                    <a href="${appUrl}" style="display:inline-block;background:#1d4ed8;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Accéder à FinDesk</a>
+                    <p style="color:#9ca3af;font-size:12px;margin-top:24px">Ce message est automatique, ne pas répondre.</p>
+                </div>`;
             try {
-                const transporter = nodemailer.createTransport({
-                    host: 'smtp.gmail.com',
-                    port: 465,
-                    secure: true,
-                    auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS }
+                const r = await fetch('https://api.resend.com/emails', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        from: fromAddress,
+                        to: [to],
+                        subject: 'Bienvenue sur FinDesk — Vos identifiants de connexion',
+                        html: htmlBody,
+                    }),
                 });
-                await transporter.verify();
-                await transporter.sendMail({
-                    from: `"FinDesk" <${process.env.GMAIL_USER}>`,
-                    to,
-                    subject: 'Bienvenue sur FinDesk — Vos identifiants de connexion',
-                    html: `
-                        <div style="font-family:Inter,sans-serif;max-width:480px;margin:auto;padding:32px;background:#f8fafc;border-radius:12px">
-                            <h2 style="color:#1d4ed8;margin-bottom:8px">FinDesk</h2>
-                            <p style="color:#374151">Bonjour,</p>
-                            <p style="color:#374151">Votre compte FinDesk a été créé. Voici vos identifiants&nbsp;:</p>
-                            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin:20px 0">
-                                <p style="margin:4px 0;color:#374151"><strong>Identifiant&nbsp;:</strong> ${username}</p>
-                                <p style="margin:4px 0;color:#374151"><strong>Mot de passe&nbsp;:</strong> ${password}</p>
-                            </div>
-                            <a href="${appUrl}" style="display:inline-block;background:#1d4ed8;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Accéder à FinDesk</a>
-                            <p style="color:#9ca3af;font-size:12px;margin-top:24px">Ce message est automatique, ne pas répondre.</p>
-                        </div>`
-                });
-                return json(res, { ok: true });
-            } catch (smtpErr) {
-                console.error('[email]', smtpErr.message);
-                return json(res, { error: smtpErr.message }, 502);
+                const data = await r.json();
+                if (r.ok) return json(res, { ok: true });
+                console.error('[email]', data);
+                return json(res, { error: data.message || data.name || JSON.stringify(data) }, 502);
+            } catch (err) {
+                console.error('[email]', err.message);
+                return json(res, { error: err.message }, 502);
             }
         }
 
