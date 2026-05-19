@@ -108,16 +108,32 @@ http.createServer(async (req, res) => {
             const prices = {};
             await Promise.allSettled(Object.entries(byMarket).map(async ([market, tvSymbols]) => {
                 try {
+                    let body;
+                    if (market === 'america') {
+                        // filter2 par name — fonctionne sans connaître l'exchange (NASDAQ/NYSE/AMEX)
+                        body = {
+                            filter2: { operator: 'or', operands: tvSymbols.map(s => ({ left: 'name', operation: 'equal', right: s })) },
+                            columns: ['name', 'close', 'currency'],
+                            range: [0, tvSymbols.length + 5],
+                        };
+                    } else {
+                        body = { symbols: { tickers: tvSymbols }, columns: ['close', 'currency'] };
+                    }
                     const r = await fetch(`https://scanner.tradingview.com/${market}/scan`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
-                        body: JSON.stringify({ symbols: { tickers: tvSymbols }, columns: ['close', 'currency'] }),
+                        body: JSON.stringify(body),
                     });
                     const data = await r.json();
                     (data?.data || []).forEach(item => {
-                        // TV peut retourner "NASDAQ:AAPL" ou "AAPL" — on essaie les deux
-                        const yahoo = symbolMap[item.s] || symbolMap[item.s?.split(':').pop()];
-                        if (yahoo && typeof item.d?.[0] === 'number') prices[yahoo] = { price: item.d[0], currency: item.d[1] || 'EUR' };
+                        if (market === 'america') {
+                            const [name, close, currency] = item.d || [];
+                            const yahoo = symbolMap[name];
+                            if (yahoo && typeof close === 'number') prices[yahoo] = { price: close, currency: currency || 'USD' };
+                        } else {
+                            const yahoo = symbolMap[item.s] || symbolMap[item.s?.split(':').pop()];
+                            if (yahoo && typeof item.d?.[0] === 'number') prices[yahoo] = { price: item.d[0], currency: item.d[1] || 'EUR' };
+                        }
                     });
                 } catch(e) { console.error('[tv-prices]', market, e.message); }
             }));
@@ -217,10 +233,13 @@ http.createServer(async (req, res) => {
                 const ext = Object.keys(tvMap).find(k => ticker.endsWith(k));
                 const tvMarket = ext ? tvMap[ext][0] : 'america';
                 const tvSymbol = ext ? tvMap[ext][1](ticker.slice(0, -ext.length)) : ticker;
+                const tvBody = ext
+                    ? { symbols: { tickers: [tvSymbol] }, columns: ['earnings_per_share_basic_ttm', 'price_earnings_ttm'] }
+                    : { filter2: { operator: 'and', operands: [{ left: 'name', operation: 'equal', right: tvSymbol }] }, columns: ['earnings_per_share_basic_ttm', 'price_earnings_ttm'], range: [0, 1] };
                 const r = await fetch(`https://scanner.tradingview.com/${tvMarket}/scan`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
-                    body: JSON.stringify({ symbols: { tickers: [tvSymbol] }, columns: ['earnings_per_share_basic_ttm', 'price_earnings_ttm'] }),
+                    body: JSON.stringify(tvBody),
                 });
                 const tvData = await r.json();
                 const d0 = tvData?.data?.[0]?.d;
