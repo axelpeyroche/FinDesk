@@ -14,9 +14,38 @@ function setCache(key, data) {
     cache.set(key, { data, ts: Date.now() });
 }
 
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
 async function yFetch(url) {
-    const r = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36' }
+    const r = await fetch(url, { headers: { 'User-Agent': UA } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+}
+
+// ---- Crumb Yahoo Finance (nécessaire pour quoteSummary) ----
+let _crumb = null, _cookies = '', _crumbExpiry = 0;
+
+async function getYahooCrumb() {
+    if (_crumb && Date.now() < _crumbExpiry) return { crumb: _crumb, cookies: _cookies };
+    // Étape 1 : obtenir les cookies de session
+    const init = await fetch('https://fc.yahoo.com/', { headers: { 'User-Agent': UA }, redirect: 'follow' });
+    const raw = init.headers.get('set-cookie') || '';
+    // Extraire les paires name=value (premier segment avant ;)
+    _cookies = raw.split(/,\s*(?=[A-Za-z_]+=)/).map(c => c.split(';')[0]).join('; ');
+    // Étape 2 : obtenir le crumb
+    const cr = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+        headers: { 'User-Agent': UA, 'Cookie': _cookies }
+    });
+    _crumb = (await cr.text()).trim();
+    _crumbExpiry = Date.now() + 55 * 60 * 1000; // 55 min
+    return { crumb: _crumb, cookies: _cookies };
+}
+
+async function yFetchAuth(url) {
+    const { crumb, cookies } = await getYahooCrumb();
+    const sep = url.includes('?') ? '&' : '?';
+    const r = await fetch(`${url}${sep}crumb=${encodeURIComponent(crumb)}`, {
+        headers: { 'User-Agent': UA, 'Cookie': cookies }
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
@@ -127,14 +156,14 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
-        // ---- Quote Summary (BPA / EPS détaillé, cache 10 min) ----
+        // ---- Quote Summary (BPA / EPS, avec crumb, cache 6h) ----
         if (p.startsWith('/api/summary/')) {
             const ticker = decodeURIComponent(p.replace('/api/summary/', ''));
             const key = `summary:${ticker}`;
-            const hit = getCached(key, 10 * 60 * 1000);
+            const hit = getCached(key, 6 * 60 * 60 * 1000);
             if (hit) return json(res, hit);
-            const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=defaultKeyStatistics,financialData,incomeStatementHistory`;
-            const data = await yFetch(url);
+            const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=defaultKeyStatistics,financialData,incomeStatementHistory,earnings`;
+            const data = await yFetchAuth(url);
             setCache(key, data);
             return json(res, data);
         }

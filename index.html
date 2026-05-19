@@ -960,6 +960,22 @@
             setTimeout(() => toast.remove(), 3300);
         };
 
+        // Extrait l'EPS brut (en devise locale) depuis /api/summary
+        async function fetchEps(ticker) {
+            try {
+                const d = await apiFetch(`/api/summary/${ticker}`);
+                const res = d?.quoteSummary?.result?.[0];
+                return (
+                    res?.defaultKeyStatistics?.trailingEps?.raw ??
+                    res?.financialData?.earningsPerShare?.raw ??
+                    res?.defaultKeyStatistics?.forwardEps?.raw ??
+                    res?.incomeStatementHistory?.incomeStatementHistory?.[0]?.dilutedEPS?.raw ??
+                    res?.earnings?.financialsChart?.yearly?.slice(-1)[0]?.earnings?.raw ??
+                    null
+                );
+            } catch { return null; }
+        }
+
         async function apiFetch(path) {
             const r = await fetch(path);
             if (!r.ok) throw new Error(`API ${r.status}`);
@@ -1485,20 +1501,15 @@
             // Si BPA manquant, on le charge via quoteSummary
             if ((!data.eps || data.eps === '-') && !data._epsFetching) {
                 data._epsFetching = true;
-                apiFetch(`/api/summary/${stockCode}`).then(d => {
-                    const res = d?.quoteSummary?.result?.[0];
-                    const rate = data.currency === 'USD' ? usdToEurRate : 1;
-                    // Cherche l'EPS dans plusieurs champs, ordre de priorité
-                    const eps =
-                        res?.defaultKeyStatistics?.trailingEps?.raw ??
-                        res?.defaultKeyStatistics?.forwardEps?.raw ??
-                        res?.incomeStatementHistory?.incomeStatementHistory?.[0]?.dilutedEPS?.raw;
-                    if (eps != null && eps !== 0) {
+                fetchEps(stockCode).then(eps => {
+                    if (eps != null) {
+                        const rate = data.currency === 'USD' ? usdToEurRate : 1;
                         data.eps = eurFmt.format(eps * rate);
                         const el = document.getElementById(`${portfolio}-eps`);
                         if (el) el.innerText = data.eps;
+                        saveMarketCache();
                     }
-                }).catch(() => {}).finally(() => { data._epsFetching = false; });
+                }).finally(() => { data._epsFetching = false; });
             }
 
             document.getElementById(`${portfolio}-exchange`).innerText = data.exchange || '-';
@@ -1967,6 +1978,21 @@
                     refreshAnalysisPanel();
                     saveMarketCache();
                 });
+            });
+
+            // BPA en arrière-plan pour tous les tickers manquants → affichage instantané au prochain chargement
+            tickers.forEach(ticker => {
+                const db = stockDatabase[ticker];
+                if (!db || db.eps && db.eps !== '-' || db._epsFetching) return;
+                db._epsFetching = true;
+                fetchEps(ticker).then(eps => {
+                    if (eps != null) {
+                        const rate = db.currency === 'USD' ? usdToEurRate : 1;
+                        db.eps = eurFmt.format(eps * rate);
+                        refreshAnalysisPanel();
+                        saveMarketCache();
+                    }
+                }).finally(() => { db._epsFetching = false; });
             });
         }
 
