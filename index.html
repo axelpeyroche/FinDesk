@@ -289,6 +289,28 @@
                                 <p id="pea-ytd" class="text-sm font-bold text-gray-800">-</p>
                             </div>
                         </div>
+                        <!-- Recommandation + Secteur -->
+                        <div class="flex flex-col sm:flex-row gap-2 mb-4">
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 flex-1">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-2">Recommandation analystes</p>
+                                <div class="flex items-center gap-2">
+                                    <div class="flex-1 relative h-1.5 bg-gradient-to-r from-red-400 via-amber-200 to-emerald-400 rounded-full">
+                                        <div id="pea-recommend-dot" class="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white shadow-md bg-gray-400 transition-all duration-500" style="left:50%;display:none"></div>
+                                    </div>
+                                    <span id="pea-recommend-label" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">-</span>
+                                </div>
+                                <div class="flex justify-between text-[9px] text-gray-400 mt-1">
+                                    <span>Vente forte</span><span>Neutre</span><span>Achat fort</span>
+                                </div>
+                            </div>
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 flex-1 flex flex-col justify-center gap-1.5">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider">Secteur & Industrie</p>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <span id="pea-sector" class="text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">-</span>
+                                    <span id="pea-industry" class="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">-</span>
+                                </div>
+                            </div>
+                        </div>
                         <div class="flex-1 flex flex-col justify-between">
                             <div class="flex justify-between items-center mb-2">
                                 <p class="text-[10px] text-gray-400 italic">Historique & PRU (Ligne rouge)</p>
@@ -420,6 +442,28 @@
                             <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
                                 <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">Perf. YTD</p>
                                 <p id="cto-ytd" class="text-sm font-bold text-gray-800">-</p>
+                            </div>
+                        </div>
+                        <!-- Recommandation + Secteur -->
+                        <div class="flex flex-col sm:flex-row gap-2 mb-4">
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 flex-1">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-2">Recommandation analystes</p>
+                                <div class="flex items-center gap-2">
+                                    <div class="flex-1 relative h-1.5 bg-gradient-to-r from-red-400 via-amber-200 to-emerald-400 rounded-full">
+                                        <div id="cto-recommend-dot" class="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white shadow-md bg-gray-400 transition-all duration-500" style="left:50%;display:none"></div>
+                                    </div>
+                                    <span id="cto-recommend-label" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap">-</span>
+                                </div>
+                                <div class="flex justify-between text-[9px] text-gray-400 mt-1">
+                                    <span>Vente forte</span><span>Neutre</span><span>Achat fort</span>
+                                </div>
+                            </div>
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 flex-1 flex flex-col justify-center gap-1.5">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider">Secteur & Industrie</p>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <span id="cto-sector" class="text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">-</span>
+                                    <span id="cto-industry" class="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium">-</span>
+                                </div>
                             </div>
                         </div>
                         <div class="flex-1 flex flex-col justify-between">
@@ -921,7 +965,7 @@
             try {
                 const stocks = {};
                 Object.entries(stockDatabase).forEach(([t, d]) => {
-                    stocks[t] = { currentPrice: d.currentPrice, priceFromApi: d.priceFromApi || false, exchange: d.exchange, eps: d.eps, per: d.per, mktcap: d.mktcap, currency: d.currency, ytd: d.ytd, div: d.div, history: d.history, timestamps: d.timestamps };
+                    stocks[t] = { currentPrice: d.currentPrice, priceFromApi: d.priceFromApi || false, exchange: d.exchange, eps: d.eps, per: d.per, mktcap: d.mktcap, sector: d.sector, industry: d.industry, _recommendRaw: d._recommendRaw, currency: d.currency, ytd: d.ytd, div: d.div, history: d.history, timestamps: d.timestamps };
                 });
                 localStorage.setItem(`findesk_market_${currentUsername}`, JSON.stringify({ ts: Date.now(), stocks, charts: { ...chartCache } }));
             } catch(e) {}
@@ -964,6 +1008,28 @@
         const pctFmt = new Intl.NumberFormat('fr-FR', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const numFmt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 4 });
         const perFmt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+        function fmtRecommend(val) {
+            if (val == null) return null;
+            if (val > 0.5)  return { label: 'Achat fort',   bg: 'bg-emerald-100', text: 'text-emerald-700', dot: '#10b981', pct: ((val + 1) / 2) * 100 };
+            if (val > 0.1)  return { label: 'Achat',        bg: 'bg-green-100',   text: 'text-green-700',   dot: '#4ade80', pct: ((val + 1) / 2) * 100 };
+            if (val > -0.1) return { label: 'Neutre',       bg: 'bg-gray-100',    text: 'text-gray-500',    dot: '#9ca3af', pct: ((val + 1) / 2) * 100 };
+            if (val > -0.5) return { label: 'Vente',        bg: 'bg-orange-100',  text: 'text-orange-700',  dot: '#fb923c', pct: ((val + 1) / 2) * 100 };
+            return             { label: 'Vente forte',  bg: 'bg-red-100',     text: 'text-red-700',     dot: '#f87171', pct: ((val + 1) / 2) * 100 };
+        }
+
+        function applyRecommend(portfolio, val) {
+            const dot   = document.getElementById(`${portfolio}-recommend-dot`);
+            const label = document.getElementById(`${portfolio}-recommend-label`);
+            if (!dot || !label) return;
+            const r = fmtRecommend(val);
+            if (!r) { dot.style.display = 'none'; label.innerText = '-'; label.className = 'text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 whitespace-nowrap'; return; }
+            dot.style.display = 'block';
+            dot.style.left = `${Math.min(Math.max(r.pct, 4), 96)}%`;
+            dot.style.backgroundColor = r.dot;
+            label.innerText = r.label;
+            label.className = `text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${r.bg} ${r.text}`;
+        }
+
         function fmtMktCap(val, currency) {
             if (!val || val <= 0) return '-';
             const sym = (currency === 'USD') ? '$' : '€';
@@ -988,13 +1054,16 @@
         async function fetchEps(ticker) {
             try {
                 const db = stockDatabase[ticker];
-                if (db?._epsRaw != null) return db._epsRaw;
+                if (db?._epsRaw != null && db?._recommendRaw != null) return db._epsRaw;
                 const d = await apiFetch(`/api/eps/${ticker}`);
-                if (d?.eps != null || d?.per != null || d?.marketCap != null) {
+                if (d?.eps != null || d?.per != null || d?.marketCap != null || d?.recommend != null || d?.sector != null || d?.industry != null) {
                     if (db) {
-                        if (d.eps != null)       db._epsRaw    = d.eps;
-                        if (d.per != null)       db._perRaw    = d.per;
-                        if (d.marketCap != null) db._mktCapRaw = d.marketCap;
+                        if (d.eps != null)       db._epsRaw       = d.eps;
+                        if (d.per != null)       db._perRaw       = d.per;
+                        if (d.marketCap != null) db._mktCapRaw    = d.marketCap;
+                        if (d.recommend != null) db._recommendRaw = d.recommend;
+                        if (d.sector != null)    db._sectorRaw    = d.sector;
+                        if (d.industry != null)  db._industryRaw  = d.industry;
                     }
                     return d.eps ?? null;
                 }
@@ -1381,7 +1450,7 @@
             data.positions.forEach(p => {
                 totalInvested += p.invested; totalVal += p.valorisation;
                 if (!stockDatabase[p.ticker]) {
-                    stockDatabase[p.ticker] = { name: p.name, exchange: '-', currency: 'EUR', currentPrice: p.pru, history: [], div: { annual: 0, freq: 0 }, eps: '-', per: '-', mktcap: '-', ytd: null, priceFromApi: false };
+                    stockDatabase[p.ticker] = { name: p.name, exchange: '-', currency: 'EUR', currentPrice: p.pru, history: [], div: { annual: 0, freq: 0 }, eps: '-', per: '-', mktcap: '-', sector: '-', industry: '-', ytd: null, priceFromApi: false };
                     if(!colorMap[p.ticker]) colorMap[p.ticker] = getPastelColor();
                 }
                 pieLabels.push(p.name); pieData.push(p.valorisation); pieColors.push(colorMap[p.ticker] || getPastelColor());
@@ -1469,13 +1538,16 @@
                 const ticker = (selEl && selEl.value) ? selEl.value : data.positions[0].ticker;
                 window.updateStockData(port, ticker);
             } else {
-                ['exchange', 'eps', 'mktcap', 'per', 'ytd', 'min', 'max'].forEach(id => {
+                ['exchange', 'eps', 'mktcap', 'per', 'ytd', 'min', 'max', 'sector', 'industry'].forEach(id => {
                     const el = document.getElementById(`${port}-${id}`);
                     if(el) {
                         el.innerText = '-';
                         if (id === 'ytd') el.className = 'text-sm font-bold text-gray-800';
+                        if (id === 'sector') el.className = 'text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium';
+                        if (id === 'industry') el.className = 'text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-medium';
                     }
                 });
+                applyRecommend(port, null);
                 const pruDisplay = document.getElementById(`${port}-pru-display`);
                 if (pruDisplay) pruDisplay.classList.add('hidden');
                 
@@ -1524,8 +1596,8 @@
                 });
             }
 
-            // Si BPA ou PER manquant, on le charge
-            if ((!data.eps || data.eps === '-' || !data.per || data.per === '-') && !data._epsFetching) {
+            // Si BPA/PER/Secteur/Recommandation manquant, on charge
+            if ((!data.eps || data.eps === '-' || !data.per || data.per === '-' || data._recommendRaw == null || !data.sector || data.sector === '-') && !data._epsFetching) {
                 data._epsFetching = true;
                 fetchEps(stockCode).then(eps => {
                     const rate = data.currency === 'USD' ? usdToEurRate : 1;
@@ -1544,6 +1616,9 @@
                         const el = document.getElementById(`${portfolio}-mktcap`);
                         if (el) el.innerText = data.mktcap;
                     }
+                    if (data._recommendRaw != null) applyRecommend(portfolio, data._recommendRaw);
+                    if (data._sectorRaw)   { data.sector   = data._sectorRaw;   const el = document.getElementById(`${portfolio}-sector`);   if (el) el.innerText = data.sector; }
+                    if (data._industryRaw) { data.industry = data._industryRaw; const el = document.getElementById(`${portfolio}-industry`); if (el) el.innerText = data.industry; }
                     saveMarketCache();
                 }).finally(() => { data._epsFetching = false; });
             }
@@ -1552,6 +1627,9 @@
             document.getElementById(`${portfolio}-eps`).innerText = data.eps || '-';
             document.getElementById(`${portfolio}-mktcap`).innerText = data.mktcap || '-';
             document.getElementById(`${portfolio}-per`).innerText = data.per || '-';
+            applyRecommend(portfolio, data._recommendRaw ?? null);
+            const secEl = document.getElementById(`${portfolio}-sector`);   if (secEl)  secEl.innerText  = data.sector   || '-';
+            const indEl = document.getElementById(`${portfolio}-industry`); if (indEl)  indEl.innerText  = data.industry || '-';
 
             const ytdEl = document.getElementById(`${portfolio}-ytd`);
             if (data.ytd !== null && data.ytd !== undefined) {
@@ -2039,20 +2117,16 @@
             // BPA/PER en arrière-plan pour tous les tickers manquants → affichage instantané au prochain chargement
             tickers.forEach(ticker => {
                 const db = stockDatabase[ticker];
-                if (!db || (db.eps && db.eps !== '-' && db.per && db.per !== '-' && db.mktcap && db.mktcap !== '-') || db._epsFetching) return;
+                if (!db || (db.eps && db.eps !== '-' && db.per && db.per !== '-' && db.mktcap && db.mktcap !== '-' && db._recommendRaw != null && db.sector && db.sector !== '-') || db._epsFetching) return;
                 db._epsFetching = true;
                 fetchEps(ticker).then(eps => {
                     const rate = db.currency === 'USD' ? usdToEurRate : 1;
-                    if (eps != null) {
-                        db.eps = eurFmt.format(eps * rate);
-                    }
-                    if (db._perRaw != null) {
-                        db.per = perFmt.format(db._perRaw);
-                    }
-                    if (db._mktCapRaw != null) {
-                        db.mktcap = fmtMktCap(db._mktCapRaw, db.currency);
-                    }
-                    if (eps != null || db._perRaw != null || db._mktCapRaw != null) {
+                    if (eps != null) db.eps = eurFmt.format(eps * rate);
+                    if (db._perRaw != null)    db.per     = perFmt.format(db._perRaw);
+                    if (db._mktCapRaw != null) db.mktcap  = fmtMktCap(db._mktCapRaw, db.currency);
+                    if (db._sectorRaw)         db.sector   = db._sectorRaw;
+                    if (db._industryRaw)       db.industry = db._industryRaw;
+                    if (eps != null || db._perRaw != null || db._mktCapRaw != null || db._recommendRaw != null || db._sectorRaw) {
                         refreshAnalysisPanel();
                         saveMarketCache();
                     }
