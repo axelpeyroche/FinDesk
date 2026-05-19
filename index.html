@@ -874,7 +874,11 @@
                 if (Date.now() - ts > MARKET_CACHE_MAX_AGE) return false;
                 let applied = false;
                 Object.entries(stocks || {}).forEach(([t, d]) => {
-                    if (stockDatabase[t]) { Object.assign(stockDatabase[t], d); applied = true; }
+                    if (stockDatabase[t]) {
+                        Object.assign(stockDatabase[t], d);
+                        if (d.currentPrice) stockDatabase[t].priceFromApi = true;
+                        applied = true;
+                    }
                 });
                 Object.entries(charts || {}).forEach(([t, ranges]) => { chartCache[t] = ranges; });
                 return applied;
@@ -1271,7 +1275,7 @@
             data.positions.forEach(p => {
                 totalInvested += p.invested; totalVal += p.valorisation;
                 if (!stockDatabase[p.ticker]) {
-                    stockDatabase[p.ticker] = { name: p.name, exchange: '-', currency: 'EUR', currentPrice: p.pru, history: [], div: { annual: 0, freq: 0 }, eps: '-', ytd: null };
+                    stockDatabase[p.ticker] = { name: p.name, exchange: '-', currency: 'EUR', currentPrice: p.pru, history: [], div: { annual: 0, freq: 0 }, eps: '-', ytd: null, priceFromApi: false };
                     if(!colorMap[p.ticker]) colorMap[p.ticker] = getPastelColor();
                 }
                 pieLabels.push(p.name); pieData.push(p.valorisation); pieColors.push(colorMap[p.ticker] || getPastelColor());
@@ -1297,7 +1301,9 @@
                         <td class="px-4 py-3 text-right font-medium">${eurFmt.format(p.valorisation)}</td>
                         <td class="px-4 py-3 text-right">${eurFmt.format(p.pru)}</td>
                         <td class="px-4 py-3 text-right font-semibold">
-                            <span class="flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="Live"></span>${eurFmt.format(p.currentPrice)}</span>
+                            ${stockDatabase[p.ticker]?.priceFromApi
+                                ? `<span class="flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="Cours en direct"></span>${eurFmt.format(p.currentPrice)}</span>`
+                                : `<span class="flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-orange-400" title="Chargement..."></span><span class="text-gray-400 text-xs">—</span></span>`}
                         </td>
                         <td class="px-4 py-3 text-right font-medium ${p.variation >= 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}">${p.variation > 0 ? '+' : ''}${pctFmt.format(p.variation)}</td>
                         <td class="px-4 py-3 text-right ${p.plusValue >= 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}">${p.plusValue > 0 ? '+' : ''}${eurFmt.format(p.plusValue)}</td>
@@ -1397,6 +1403,27 @@
             if (!stockCode) return;
             const data = stockDatabase[stockCode];
             if (!data) return;
+
+            // Si pas d'historique, on le charge automatiquement
+            if (!data.history || data.history.length === 0) {
+                fetchChartHistory(stockCode, currentChartRange[portfolio] || '1y').then(() => {
+                    window.updateStockData(portfolio, stockCode);
+                });
+            }
+
+            // Si BPA manquant, on le charge via quoteSummary
+            if ((!data.eps || data.eps === '-') && !data._epsFetching) {
+                data._epsFetching = true;
+                apiFetch(`/api/summary/${stockCode}`).then(d => {
+                    const ks = d?.quoteSummary?.result?.[0];
+                    const rate = data.currency === 'USD' ? usdToEurRate : 1;
+                    const eps = ks?.defaultKeyStatistics?.trailingEps?.raw ?? ks?.financialData?.revenuePerShare?.raw;
+                    if (eps != null && eps !== 0) {
+                        data.eps = eurFmt.format(eps * rate);
+                        document.getElementById(`${portfolio}-eps`).innerText = data.eps;
+                    }
+                }).catch(() => {}).finally(() => { data._epsFetching = false; });
+            }
 
             document.getElementById(`${portfolio}-exchange`).innerText = data.exchange || '-';
             document.getElementById(`${portfolio}-eps`).innerText = data.eps || '-';
@@ -1701,14 +1728,15 @@
             data.quoteResponse.result.forEach(q => {
                 const db = stockDatabase[q.symbol]; if (!db) return;
                 db.currency = q.currency || 'EUR'; const rate = db.currency === 'USD' ? usdToEurRate : 1;
-                if (typeof q.regularMarketPrice === 'number' && q.regularMarketPrice > 0) db.currentPrice = q.regularMarketPrice * rate;
-                db.exchange = q.fullExchangeName || q.exchangeName || q.exchange || db.exchange || '-';
-                
-                // BPA extraction (converti en EUR si nécessaire)
-                let eps = q.epsTrailingTwelveMonths;
-                if (eps != null) {
-                    db.eps = eurFmt.format(eps * rate);
+                if (typeof q.regularMarketPrice === 'number' && q.regularMarketPrice > 0) {
+                    db.currentPrice = q.regularMarketPrice * rate;
+                    db.priceFromApi = true;
                 }
+                db.exchange = q.fullExchangeName || q.exchangeName || q.exchange || db.exchange || '-';
+
+                // BPA depuis le batch quote (souvent null pour les tickers européens)
+                const eps = q.epsTrailingTwelveMonths;
+                if (eps != null && eps !== 0) db.eps = eurFmt.format(eps * rate);
             });
         }
 

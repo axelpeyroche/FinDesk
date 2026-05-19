@@ -93,6 +93,18 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
+        // ---- Quote Summary (BPA / EPS détaillé, cache 10 min) ----
+        if (p.startsWith('/api/summary/')) {
+            const ticker = decodeURIComponent(p.replace('/api/summary/', ''));
+            const key = `summary:${ticker}`;
+            const hit = getCached(key, 10 * 60 * 1000);
+            if (hit) return json(res, hit);
+            const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${ticker}?modules=defaultKeyStatistics,financialData`;
+            const data = await yFetch(url);
+            setCache(key, data);
+            return json(res, data);
+        }
+
         // ---- Recherche TradingView fallback (cache 30s) ----
         if (p === '/api/tvsearch') {
             const q = parsed.searchParams.get('q') || '';
