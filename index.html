@@ -852,6 +852,34 @@
         let activeLineCharts = { pea: null, cto: null }, pieCharts = { pea: null, cto: null }, dividendCharts = { pea: null, cto: null };
         const chartCache = {}; // { [ticker]: { [range]: { data: {...}, ts: epoch_ms } } }
         const CHART_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+        const MARKET_CACHE_MAX_AGE = 60 * 60 * 1000; // 1 heure
+
+        function saveMarketCache() {
+            if (!currentUsername) return;
+            try {
+                const stocks = {};
+                Object.entries(stockDatabase).forEach(([t, d]) => {
+                    stocks[t] = { currentPrice: d.currentPrice, exchange: d.exchange, eps: d.eps, currency: d.currency, ytd: d.ytd, div: d.div, history: d.history, timestamps: d.timestamps };
+                });
+                localStorage.setItem(`findesk_market_${currentUsername}`, JSON.stringify({ ts: Date.now(), stocks, charts: { ...chartCache } }));
+            } catch(e) {}
+        }
+
+        function loadMarketCache() {
+            if (!currentUsername) return false;
+            try {
+                const raw = localStorage.getItem(`findesk_market_${currentUsername}`);
+                if (!raw) return false;
+                const { ts, stocks, charts } = JSON.parse(raw);
+                if (Date.now() - ts > MARKET_CACHE_MAX_AGE) return false;
+                let applied = false;
+                Object.entries(stocks || {}).forEach(([t, d]) => {
+                    if (stockDatabase[t]) { Object.assign(stockDatabase[t], d); applied = true; }
+                });
+                Object.entries(charts || {}).forEach(([t, ranges]) => { chartCache[t] = ranges; });
+                return applied;
+            } catch(e) { return false; }
+        }
         let budgetCharts = { solde: null, repart: null, cb: null, bar: null, evol: null };
 
         const pastelPalette = [
@@ -1775,6 +1803,7 @@
                 exchange: stockDatabase[ticker].exchange,
                 ts: Date.now()
             };
+            saveMarketCache();
         }
 
         function _applyChartData(ticker, range, cached) {
@@ -1812,6 +1841,7 @@
 
             window.renderDashboard();
             refreshAnalysisPanel();
+            saveMarketCache();
         }
 
         function updateDropdowns() {
@@ -2161,7 +2191,11 @@
                     if (parsed.dividends) allDividends = typeof parsed.dividends === 'string' ? JSON.parse(parsed.dividends) : parsed.dividends;
                     if (parsed.budget) allBudgetMovements = typeof parsed.budget === 'string' ? JSON.parse(parsed.budget) : parsed.budget;
                     if (parsed.goal) portfolioGoal = parsed.goal;
-                    window.renderDashboard();
+                    window.renderDashboard(); // 1er rendu : positions sans prix
+                    if (loadMarketCache()) {
+                        window.renderDashboard(); // 2e rendu instantané : prix du cache localStorage
+                        refreshAnalysisPanel();   // graphiques du cache
+                    }
                 } catch(e) { console.error("Error loading local data", e); }
             }
         }
