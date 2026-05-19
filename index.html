@@ -267,7 +267,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="grid grid-cols-4 gap-3 mb-4">
+                        <div class="grid grid-cols-5 gap-2 mb-4">
                             <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
                                 <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">Bourse</p>
                                 <p id="pea-exchange" class="text-sm font-bold text-gray-800 truncate">-</p>
@@ -275,6 +275,10 @@
                             <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
                                 <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">BPA</p>
                                 <p id="pea-eps" class="text-sm font-bold text-gray-800">-</p>
+                            </div>
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">Capitalisation</p>
+                                <p id="pea-mktcap" class="text-sm font-bold text-gray-800">-</p>
                             </div>
                             <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
                                 <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">PER</p>
@@ -396,7 +400,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="grid grid-cols-4 gap-3 mb-4">
+                        <div class="grid grid-cols-5 gap-2 mb-4">
                             <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
                                 <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">Bourse</p>
                                 <p id="cto-exchange" class="text-sm font-bold text-gray-800 truncate">-</p>
@@ -404,6 +408,10 @@
                             <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
                                 <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">BPA</p>
                                 <p id="cto-eps" class="text-sm font-bold text-gray-800">-</p>
+                            </div>
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">Capitalisation</p>
+                                <p id="cto-mktcap" class="text-sm font-bold text-gray-800">-</p>
                             </div>
                             <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
                                 <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">PER</p>
@@ -913,7 +921,7 @@
             try {
                 const stocks = {};
                 Object.entries(stockDatabase).forEach(([t, d]) => {
-                    stocks[t] = { currentPrice: d.currentPrice, priceFromApi: d.priceFromApi || false, exchange: d.exchange, eps: d.eps, per: d.per, currency: d.currency, ytd: d.ytd, div: d.div, history: d.history, timestamps: d.timestamps };
+                    stocks[t] = { currentPrice: d.currentPrice, priceFromApi: d.priceFromApi || false, exchange: d.exchange, eps: d.eps, per: d.per, mktcap: d.mktcap, currency: d.currency, ytd: d.ytd, div: d.div, history: d.history, timestamps: d.timestamps };
                 });
                 localStorage.setItem(`findesk_market_${currentUsername}`, JSON.stringify({ ts: Date.now(), stocks, charts: { ...chartCache } }));
             } catch(e) {}
@@ -956,6 +964,13 @@
         const pctFmt = new Intl.NumberFormat('fr-FR', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const numFmt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 4 });
         const perFmt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+        function fmtMktCap(val, currency) {
+            if (!val || val <= 0) return '-';
+            const sym = (currency === 'USD') ? '$' : '€';
+            if (val >= 1e12) return (val / 1e12).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + ' B ' + sym;
+            if (val >= 1e9)  return (val / 1e9 ).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' Md ' + sym;
+            return (val / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' M ' + sym;
+        }
 
         // ==========================================
         // 2. FONCTIONS UTILITAIRES & PROXY API
@@ -975,10 +990,11 @@
                 const db = stockDatabase[ticker];
                 if (db?._epsRaw != null) return db._epsRaw;
                 const d = await apiFetch(`/api/eps/${ticker}`);
-                if (d?.eps != null || d?.per != null) {
+                if (d?.eps != null || d?.per != null || d?.marketCap != null) {
                     if (db) {
-                        if (d.eps != null) db._epsRaw = d.eps;
-                        if (d.per != null) db._perRaw = d.per;
+                        if (d.eps != null)       db._epsRaw    = d.eps;
+                        if (d.per != null)       db._perRaw    = d.per;
+                        if (d.marketCap != null) db._mktCapRaw = d.marketCap;
                     }
                     return d.eps ?? null;
                 }
@@ -1365,7 +1381,7 @@
             data.positions.forEach(p => {
                 totalInvested += p.invested; totalVal += p.valorisation;
                 if (!stockDatabase[p.ticker]) {
-                    stockDatabase[p.ticker] = { name: p.name, exchange: '-', currency: 'EUR', currentPrice: p.pru, history: [], div: { annual: 0, freq: 0 }, eps: '-', per: '-', ytd: null, priceFromApi: false };
+                    stockDatabase[p.ticker] = { name: p.name, exchange: '-', currency: 'EUR', currentPrice: p.pru, history: [], div: { annual: 0, freq: 0 }, eps: '-', per: '-', mktcap: '-', ytd: null, priceFromApi: false };
                     if(!colorMap[p.ticker]) colorMap[p.ticker] = getPastelColor();
                 }
                 pieLabels.push(p.name); pieData.push(p.valorisation); pieColors.push(colorMap[p.ticker] || getPastelColor());
@@ -1453,7 +1469,7 @@
                 const ticker = (selEl && selEl.value) ? selEl.value : data.positions[0].ticker;
                 window.updateStockData(port, ticker);
             } else {
-                ['exchange', 'eps', 'per', 'ytd', 'min', 'max'].forEach(id => {
+                ['exchange', 'eps', 'mktcap', 'per', 'ytd', 'min', 'max'].forEach(id => {
                     const el = document.getElementById(`${port}-${id}`);
                     if(el) {
                         el.innerText = '-';
@@ -1523,12 +1539,18 @@
                         const el = document.getElementById(`${portfolio}-per`);
                         if (el) el.innerText = data.per;
                     }
+                    if (data._mktCapRaw != null) {
+                        data.mktcap = fmtMktCap(data._mktCapRaw, data.currency);
+                        const el = document.getElementById(`${portfolio}-mktcap`);
+                        if (el) el.innerText = data.mktcap;
+                    }
                     saveMarketCache();
                 }).finally(() => { data._epsFetching = false; });
             }
 
             document.getElementById(`${portfolio}-exchange`).innerText = data.exchange || '-';
             document.getElementById(`${portfolio}-eps`).innerText = data.eps || '-';
+            document.getElementById(`${portfolio}-mktcap`).innerText = data.mktcap || '-';
             document.getElementById(`${portfolio}-per`).innerText = data.per || '-';
 
             const ytdEl = document.getElementById(`${portfolio}-ytd`);
@@ -2017,7 +2039,7 @@
             // BPA/PER en arrière-plan pour tous les tickers manquants → affichage instantané au prochain chargement
             tickers.forEach(ticker => {
                 const db = stockDatabase[ticker];
-                if (!db || (db.eps && db.eps !== '-' && db.per && db.per !== '-') || db._epsFetching) return;
+                if (!db || (db.eps && db.eps !== '-' && db.per && db.per !== '-' && db.mktcap && db.mktcap !== '-') || db._epsFetching) return;
                 db._epsFetching = true;
                 fetchEps(ticker).then(eps => {
                     const rate = db.currency === 'USD' ? usdToEurRate : 1;
@@ -2027,7 +2049,10 @@
                     if (db._perRaw != null) {
                         db.per = perFmt.format(db._perRaw);
                     }
-                    if (eps != null || db._perRaw != null) {
+                    if (db._mktCapRaw != null) {
+                        db.mktcap = fmtMktCap(db._mktCapRaw, db.currency);
+                    }
+                    if (eps != null || db._perRaw != null || db._mktCapRaw != null) {
                         refreshAnalysisPanel();
                         saveMarketCache();
                     }

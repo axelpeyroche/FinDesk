@@ -231,15 +231,16 @@ http.createServer(async (req, res) => {
                 const r = await fetch(`https://scanner.tradingview.com/${tvMarket}/scan`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
-                    body: JSON.stringify({ symbols: { tickers: tvTickers }, columns: ['earnings_per_share_basic_ttm', 'price_earnings_ttm'] }),
+                    body: JSON.stringify({ symbols: { tickers: tvTickers }, columns: ['earnings_per_share_basic_ttm', 'price_earnings_ttm', 'market_cap_basic'] }),
                 });
                 const tvData = await r.json();
                 const d0 = tvData?.data?.[0]?.d;
-                const tvEps = typeof d0?.[0] === 'number' ? d0[0] : null;
-                const per   = typeof d0?.[1] === 'number' ? d0[1] : null;
-                const eps   = epsFromChart ?? tvEps;
-                if (eps !== null || per !== null) {
-                    const result = { eps, per, periods: epsFromChart ? 4 : 1 };
+                const tvEps      = typeof d0?.[0] === 'number' ? d0[0] : null;
+                const per        = typeof d0?.[1] === 'number' ? d0[1] : null;
+                const marketCap  = typeof d0?.[2] === 'number' ? d0[2] : null;
+                const eps        = epsFromChart ?? tvEps;
+                if (eps !== null || per !== null || marketCap !== null) {
+                    const result = { eps, per, marketCap, periods: epsFromChart ? 4 : 1 };
                     setCache(cacheKey, result);
                     return json(res, result);
                 }
