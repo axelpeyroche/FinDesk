@@ -1,0 +1,2557 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Financier Personnel</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>€</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .table-container::-webkit-scrollbar, .inner-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+        .table-container::-webkit-scrollbar-track, .inner-scroll::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb, .inner-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .table-container::-webkit-scrollbar-thumb:hover, .inner-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .nav-active { background-color: #eff6ff; color: #2563eb; border-right: 3px solid #2563eb; font-weight: 600; }
+        .subnav-active { color: #2563eb; font-weight: 600; background-color: #f8fafc; }
+        .budget-tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; }
+        .expanded-icon { transform: rotate(90deg); }
+        .search-dropdown { max-height: 260px; overflow-y: auto; }
+        .autocomplete-results { position: absolute; z-index: 999; width: 100%; top: 100%; left: 0; background: white; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); margin-top: 4px; max-height: 260px; overflow-y: auto; }
+        .autocomplete-results li { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; }
+        .autocomplete-results li:hover { background-color: #eff6ff; }
+        .autocomplete-results li:last-child { border-bottom: none; }
+        
+        @keyframes modalEnterAnim {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .modal-enter { animation: modalEnterAnim 0.2s ease-out forwards; }
+        .fab-menu { transition: all 0.2s ease-in-out; transform-origin: bottom right; transform: scale(0); opacity: 0; pointer-events: none; }
+        .fab-menu.active { transform: scale(1); opacity: 1; pointer-events: auto; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden text-gray-800 relative">
+    <div class="hidden bg-blue-100 text-blue-700 bg-red-100 text-red-700 bg-orange-100 text-orange-700 bg-emerald-100 text-emerald-700 bg-purple-100 text-purple-700 bg-blue-600 bg-blue-50 bg-red-600 bg-red-50 bg-orange-600 bg-orange-50 bg-emerald-600 bg-emerald-50 bg-purple-600 bg-purple-50"></div>
+    
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[400] flex flex-col gap-2 pointer-events-none"></div>
+
+    <div id="login-overlay" class="absolute inset-0 bg-gray-900 z-[200] flex flex-col items-center justify-center transition-opacity duration-300">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full mx-4">
+            <div class="flex items-center justify-center mb-6">
+                <i class="ph-fill ph-chart-polar text-4xl text-blue-600 mr-2"></i>
+                <h1 class="text-2xl font-bold text-gray-800">FinDesk</h1>
+            </div>
+            <h2 class="text-lg font-semibold text-center text-gray-600 mb-6">Connectez-vous à votre espace</h2>
+            <form onsubmit="window.handleLogin(event)" class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Identifiant</label>
+                    <div class="relative">
+                        <i class="ph ph-user absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg"></i>
+                        <input type="text" id="login-user" class="w-full border border-gray-300 rounded-lg py-2.5 pl-10 pr-3 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors" placeholder="Votre identifiant" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+                    <div class="relative">
+                        <i class="ph ph-lock-key absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg"></i>
+                        <input type="password" id="login-pass" class="w-full border border-gray-300 rounded-lg py-2.5 pl-10 pr-3 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors" placeholder="••••••••" required>
+                    </div>
+                </div>
+                <button id="login-btn" type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg mt-2 transition-colors shadow-md shadow-blue-500/30">Accéder au portefeuille</button>
+            </form>
+        </div>
+        <div class="text-gray-400 text-xs mt-6">&copy; 2026 Axel Peyroche - FinDesk</div>
+    </div>
+
+    <div id="app-container" class="hidden w-full h-full relative">
+        <aside class="w-64 bg-white shadow-lg flex-col hidden md:flex z-10 overflow-y-auto">
+            <div class="h-20 flex items-center px-8 border-b border-gray-100 flex-shrink-0">
+                <i class="ph-fill ph-chart-polar text-3xl text-blue-600 mr-3"></i>
+                <h1 class="text-xl font-bold text-gray-800 tracking-tight">FinDesk</h1>
+            </div>
+            <nav class="flex-1 py-6 flex flex-col gap-1">
+                <div class="mb-2" id="nav-group-bourse">
+                    <div class="px-8 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider">Bourse</div>
+                    <button onclick="window.switchTab('bourse-recap')" id="btn-bourse-recap" class="nav-btn nav-active w-full flex items-center px-8 py-2.5 text-left font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                        <i class="ph ph-chart-line-up text-xl mr-3"></i> Synthèse Globale
+                    </button>
+                    <div class="pl-11 pr-4 space-y-1 mt-1 border-l-2 border-gray-100 ml-8">
+                        <button onclick="window.switchTab('pea')" id="btn-pea" class="nav-btn w-full text-left px-4 py-2 text-sm text-gray-500 hover:text-blue-600 rounded transition-colors">Portefeuille PEA</button>
+                        <button onclick="window.switchTab('cto')" id="btn-cto" class="nav-btn w-full text-left px-4 py-2 text-sm text-gray-500 hover:text-blue-600 rounded transition-colors">Portefeuille CTO</button>
+                    </div>
+                </div>
+                <div class="mt-4 mb-2" id="nav-group-budget">
+                    <div class="px-8 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider">Finances</div>
+                    <button onclick="window.switchTab('budget')" id="btn-budget" class="nav-btn w-full flex items-center px-8 py-2.5 text-left font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+                        <i class="ph ph-wallet text-xl mr-3"></i> Suivi Budget
+                    </button>
+                </div>
+                <button onclick="window.switchTab('admin')" id="btn-admin" class="hidden nav-btn w-full flex items-center px-8 py-3 text-left font-medium text-gray-600 hover:bg-gray-50 transition-colors border-t border-gray-100 mt-4 pt-6">
+                    <i class="ph ph-shield-star text-xl mr-3 text-purple-600"></i> Administration
+                </button>
+            </nav>
+            <div class="p-4 border-t border-gray-100 flex-shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold" id="user-avatar-initials">U</div>
+                    <div class="flex-1 overflow-hidden">
+                        <p class="text-sm font-semibold truncate" id="user-display-name">Utilisateur</p>
+                        <p class="text-xs text-green-500 flex items-center gap-1 cursor-pointer hover:text-red-500 transition-colors" onclick="window.logout()"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Déconnexion</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto relative bg-gray-50 pb-10">
+            <header class="md:hidden bg-white shadow-sm p-4 flex justify-between items-center sticky top-0 z-20">
+                <div class="flex items-center">
+                    <i class="ph-fill ph-chart-polar text-2xl text-blue-600 mr-2"></i>
+                    <h1 class="text-lg font-bold">FinDesk</h1>
+                </div>
+                <div class="flex items-center gap-2">
+                    <select id="mobile-nav" onchange="window.switchTab(this.value)" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2">
+                        <option value="bourse-recap" id="opt-recap">Synthèse Bourse</option>
+                        <option value="pea" id="opt-pea">PEA</option>
+                        <option value="cto" id="opt-cto">CTO</option>
+                        <option value="budget" id="opt-budget">Budget</option>
+                        <option value="admin" id="mobile-admin-opt" class="hidden">Admin</option>
+                    </select>
+                    <button onclick="window.logout()" class="text-red-500 p-2"><i class="ph-bold ph-sign-out"></i></button>
+                </div>
+            </header>
+
+            <!-- ==================== SYNTHESE BOURSE ==================== -->
+            <section id="tab-bourse-recap" class="p-4 md:p-8 tab-content block">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Synthèse Globale Bourse (PEA + CTO)</h2>
+                    <div class="flex items-center gap-2 text-xs font-medium text-gray-500 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        Données en direct
+                        <span class="usd-rate-display ml-2 text-[10px] text-gray-400 border-l pl-2">USD/EUR: --</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
+                        <p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-2">Total Investi</p>
+                        <p id="recap-kpi-invest" class="text-2xl font-bold text-gray-800">0,00 €</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
+                        <p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-2">Valeur Globale</p>
+                        <p id="recap-kpi-val" class="text-2xl font-bold text-gray-800">0,00 €</p>
+                    </div>
+                    <div id="recap-kpi-profit-container" class="bg-gray-50 p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
+                        <p class="text-xs text-gray-600 font-medium uppercase tracking-wider mb-2">Plus-Value Globale</p>
+                        <p id="recap-kpi-profit" class="text-2xl font-bold text-gray-700">0,00 €</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
+                        <p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-2">Dividendes Totaux (Historique)</p>
+                        <p id="recap-kpi-div" class="text-2xl font-bold text-gray-800">0,00 €</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-blue-100 bg-blue-50/20 mb-6">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                        <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <i class="ph-fill ph-target text-blue-600"></i> Objectif de Portefeuille
+                        </h3>
+                        <form onsubmit="window.savePortfolioGoal(event)" class="flex gap-2 items-center">
+                            <label class="text-sm font-medium text-gray-600">Nouvel objectif :</label>
+                            <input type="number" id="portfolio-goal-input" step="100" class="border border-gray-300 rounded-lg p-1.5 text-sm w-32 focus:ring-blue-500 focus:border-blue-500" required>
+                            <span class="text-sm text-gray-600">€</span>
+                            <button type="submit" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700 ml-2">Définir</button>
+                        </form>
+                    </div>
+                    <div class="mb-2 flex justify-between items-end">
+                        <p class="text-sm text-gray-500">Progression vers l'objectif de <span id="display-goal-val" class="font-bold text-gray-800">0,00 €</span></p>
+                        <p id="display-goal-pct" class="text-2xl font-bold text-blue-600">0 %</p>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-4 relative overflow-hidden">
+                        <div id="goal-progress-bar" class="bg-blue-600 h-4 rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
+                        <h3 class="text-sm font-bold text-gray-700 mb-4 text-center">Bilan des portefeuilles</h3>
+                        <div class="flex items-center justify-between p-4 border-b border-gray-50">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xl"><i class="ph-bold ph-briefcase"></i></div>
+                                <div><p class="font-bold text-gray-800">PEA</p><p class="text-xs text-gray-500">Valorisation actuelle</p></div>
+                            </div>
+                            <p id="recap-pea-val" class="font-bold text-lg">0,00 €</p>
+                        </div>
+                        <div class="flex items-center justify-between p-4 mt-2">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-xl"><i class="ph-bold ph-globe-hemisphere-west"></i></div>
+                                <div><p class="font-bold text-gray-800">CTO</p><p class="text-xs text-gray-500">Valorisation actuelle</p></div>
+                            </div>
+                            <p id="recap-cto-val" class="font-bold text-lg">0,00 €</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="text-sm font-bold text-gray-700 mb-4 text-center">PEA vs CTO (Valorisation)</h3>
+                        <div class="relative h-64 w-full flex items-center justify-center">
+                            <canvas id="recapPieChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="text-sm font-bold text-gray-700 mb-4 text-center">Répartition Globale (Actions)</h3>
+                        <div class="relative h-64 w-full flex items-center justify-center">
+                            <canvas id="recapGlobalPieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2"><i class="ph-fill ph-chart-bar text-green-500"></i> Dividendes Historiques Reçus (PEA vs CTO)</h3>
+                        <div class="relative h-48 w-full"><canvas id="recapDivHistoryChart"></canvas></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="text-sm font-bold text-gray-700 mb-4 flex items-center gap-2"><i class="ph-fill ph-trend-up text-blue-500"></i> Prévisions Dividendes 12 mois (PEA vs CTO)</h3>
+                        <div class="relative h-48 w-full"><canvas id="recapDivForecastChart"></canvas></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== PEA ==================== -->
+            <section id="tab-pea" class="p-4 md:p-8 tab-content hidden">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Portefeuille boursier PEA</h2>
+                    <div class="flex items-center gap-2 text-xs font-medium text-gray-500 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        Données en direct
+                        <span class="usd-rate-display ml-2 text-[10px] text-gray-400 border-l pl-2">USD/EUR: --</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Montant investi</p><p id="pea-kpi-invest" class="text-lg font-bold text-gray-800">0,00 €</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Valeur globale</p><p id="pea-kpi-val" class="text-lg font-bold text-gray-800">0,00 €</p></div>
+                    <div id="pea-kpi-profit-container" class="bg-gray-50 p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-600 font-medium uppercase tracking-wider mb-1">Bénéfice Global</p><p id="pea-kpi-profit" class="text-lg font-bold text-gray-700">0,00 €</p></div>
+                    <div id="pea-kpi-yield-container" class="bg-gray-50 p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-600 font-medium uppercase tracking-wider mb-1">Rendement</p><p id="pea-kpi-yield" class="text-lg font-bold text-gray-700">0,00 %</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Total dividendes</p><p id="pea-kpi-div" class="text-lg font-bold text-gray-800">0,00 €</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Ratio dividendes</p><p id="pea-kpi-div-ratio" class="text-lg font-bold text-gray-800">0,00 %</p></div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-1">
+                        <h3 class="text-sm font-bold text-gray-700 mb-4 text-center">Répartition du portefeuille</h3>
+                        <div class="relative h-64 w-full flex items-center justify-center">
+                            <canvas id="peaPieChart"></canvas>
+                            <p id="pea-empty-pie" class="absolute text-sm text-gray-400 italic">Aucune donnée</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2 flex flex-col">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                            <h3 class="text-sm font-bold text-gray-700 flex items-center gap-2">
+                                <i class="ph-bold ph-chart-line-up text-blue-600 text-lg"></i> Analyse de l'action
+                            </h3>
+                            <div class="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border border-gray-200">
+                                <i class="ph-fill ph-trend-up text-gray-400"></i>
+                                <select id="pea-stock-select" onchange="window.updateStockData('pea', this.value)" class="bg-transparent text-gray-900 text-sm font-medium focus:outline-none cursor-pointer">
+                                    <option value="" disabled selected>Aucune action</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 mb-4">
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">Bourse</p>
+                                <p id="pea-exchange" class="text-sm font-bold text-gray-800 truncate">-</p>
+                            </div>
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">BPA</p>
+                                <p id="pea-eps" class="text-sm font-bold text-gray-800">-</p>
+                            </div>
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">Perf. YTD</p>
+                                <p id="pea-ytd" class="text-sm font-bold text-gray-800">-</p>
+                            </div>
+                        </div>
+                        <div class="flex-1 flex flex-col justify-between">
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="text-[10px] text-gray-400 italic">Historique & PRU (Ligne rouge)</p>
+                                <div class="flex gap-1 bg-gray-100 p-0.5 rounded text-xs">
+                                    <button onclick="window.changeChartRange('pea', '1y')" class="pea-range-btn pea-range-1y px-2 py-1 rounded bg-white shadow-sm text-blue-600 font-bold transition-colors">1A</button>
+                                    <button onclick="window.changeChartRange('pea', '2y')" class="pea-range-btn pea-range-2y px-2 py-1 rounded text-gray-500 hover:bg-gray-200 transition-colors">2A</button>
+                                    <button onclick="window.changeChartRange('pea', '5y')" class="pea-range-btn pea-range-5y px-2 py-1 rounded text-gray-500 hover:bg-gray-200 transition-colors">5A</button>
+                                    <button onclick="window.changeChartRange('pea', '10y')" class="pea-range-btn pea-range-10y px-2 py-1 rounded text-gray-500 hover:bg-gray-200 transition-colors">10A</button>
+                                    <button onclick="window.changeChartRange('pea', 'max')" class="pea-range-btn pea-range-max px-2 py-1 rounded text-gray-500 hover:bg-gray-200 transition-colors">Max</button>
+                                </div>
+                            </div>
+                            <div class="relative w-full flex-1 min-h-[160px]">
+                                <canvas id="peaLineChart"></canvas>
+                            </div>
+                            <div class="flex justify-between items-center text-xs text-gray-500 mt-2 px-2 font-medium">
+                                <span id="pea-min" class="bg-gray-100 px-2 py-1 rounded border border-gray-200">-</span>
+                                <span id="pea-pru-display" class="text-red-500 font-bold border border-red-200 bg-red-50 px-2 py-1 rounded hidden">-</span>
+                                <span id="pea-max" class="bg-gray-100 px-2 py-1 rounded border border-gray-200">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table PEA -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                    <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+                        <h3 class="font-bold text-gray-800">Détail des positions <span class="text-xs font-normal text-gray-400 ml-2">(Cliquez pour afficher les achats)</span></h3>
+                    </div>
+                    <div class="table-container overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-600 min-w-[1000px]">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th class="px-4 py-3">Nom société</th><th class="px-4 py-3 text-center">Code</th><th class="px-4 py-3 text-right">Qté</th>
+                                    <th class="px-4 py-3 text-right">Montant investi</th><th class="px-4 py-3 text-right">Valorisation</th><th class="px-4 py-3 text-right">PRU</th>
+                                    <th class="px-4 py-3 text-right">Cours Actuel</th><th class="px-4 py-3 text-right">Variation</th><th class="px-4 py-3 text-right">Plus-value</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pea-table-body">
+                                <tr><td colspan="9" class="px-4 py-6 text-center italic text-gray-500">Aucune action dans ce portefeuille. Cliquez sur le "+" en bas à droite.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Dividendes PEA -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                    <div class="p-4 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center bg-yellow-50/50 gap-4">
+                        <h3 class="font-bold text-gray-800 flex items-center"><i class="ph-fill ph-calendar-star text-yellow-500 mr-2 text-lg"></i> Dividendes (PEA)</h3>
+                        <div class="flex flex-wrap gap-2">
+                            <select id="pea-div-view" onchange="window.updateDividendUI('pea')" class="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg focus:ring-yellow-500 focus:border-yellow-500 p-1.5 cursor-pointer shadow-sm font-medium">
+                                <option value="history">Historique perçu</option>
+                                <option value="forecast">Prévisions annuelles</option>
+                            </select>
+                            <select id="pea-div-year" onchange="window.updateDividendUI('pea')" class="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg p-1.5 cursor-pointer shadow-sm">
+                                <option value="ALL">Toutes les années</option>
+                            </select>
+                            <select id="pea-div-company" onchange="window.updateDividendUI('pea')" class="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg p-1.5 cursor-pointer shadow-sm max-w-[150px] truncate">
+                                <option value="ALL">Toutes les entreprises</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex flex-col md:flex-row gap-4 p-4" id="pea-div-main-container">
+                        <div class="flex-1 table-container overflow-y-auto max-h-[400px] border border-gray-200 rounded" id="pea-dividend-container"></div>
+                        <div id="pea-dividend-chart-container" class="w-full md:w-1/2 relative min-h-[250px]">
+                            <canvas id="pea-dividend-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== CTO ==================== -->
+            <section id="tab-cto" class="p-4 md:p-8 tab-content hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Portefeuille boursier CTO</h2>
+                    <div class="flex items-center gap-2 text-xs font-medium text-gray-500 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        Données en direct
+                        <span class="usd-rate-display ml-2 text-[10px] text-gray-400 border-l pl-2">USD/EUR: --</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Montant investi</p><p id="cto-kpi-invest" class="text-lg font-bold text-gray-800">0,00 €</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Valeur globale</p><p id="cto-kpi-val" class="text-lg font-bold text-gray-800">0,00 €</p></div>
+                    <div id="cto-kpi-profit-container" class="bg-gray-50 p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-600 font-medium uppercase tracking-wider mb-1">Bénéfice Global</p><p id="cto-kpi-profit" class="text-lg font-bold text-gray-700">0,00 €</p></div>
+                    <div id="cto-kpi-yield-container" class="bg-gray-50 p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-600 font-medium uppercase tracking-wider mb-1">Rendement</p><p id="cto-kpi-yield" class="text-lg font-bold text-gray-700">0,00 %</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Total dividendes</p><p id="cto-kpi-div" class="text-lg font-bold text-gray-800">0,00 €</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Ratio dividendes</p><p id="cto-kpi-div-ratio" class="text-lg font-bold text-gray-800">0,00 %</p></div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-1">
+                        <h3 class="text-sm font-bold text-gray-700 mb-4 text-center">Répartition du portefeuille</h3>
+                        <div class="relative h-64 w-full flex items-center justify-center">
+                            <canvas id="ctoPieChart"></canvas>
+                            <p id="cto-empty-pie" class="absolute text-sm text-gray-400 italic">Aucune donnée</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2 flex flex-col">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                            <h3 class="text-sm font-bold text-gray-700 flex items-center gap-2">
+                                <i class="ph-bold ph-chart-line-up text-blue-600 text-lg"></i> Analyse de l'action
+                            </h3>
+                            <div class="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border border-gray-200">
+                                <i class="ph-fill ph-trend-up text-gray-400"></i>
+                                <select id="cto-stock-select" onchange="window.updateStockData('cto', this.value)" class="bg-transparent text-gray-900 text-sm font-medium focus:outline-none cursor-pointer">
+                                    <option value="" disabled selected>Aucune action</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 mb-4">
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">Bourse</p>
+                                <p id="cto-exchange" class="text-sm font-bold text-gray-800 truncate">-</p>
+                            </div>
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">BPA</p>
+                                <p id="cto-eps" class="text-sm font-bold text-gray-800">-</p>
+                            </div>
+                            <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-center flex flex-col justify-center">
+                                <p class="text-[10px] text-blue-600 font-semibold uppercase tracking-wider mb-1">Perf. YTD</p>
+                                <p id="cto-ytd" class="text-sm font-bold text-gray-800">-</p>
+                            </div>
+                        </div>
+                        <div class="flex-1 flex flex-col justify-between">
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="text-[10px] text-gray-400 italic">Historique & PRU (Ligne rouge)</p>
+                                <div class="flex gap-1 bg-gray-100 p-0.5 rounded text-xs">
+                                    <button onclick="window.changeChartRange('cto', '1y')" class="cto-range-btn cto-range-1y px-2 py-1 rounded bg-white shadow-sm text-blue-600 font-bold transition-colors">1A</button>
+                                    <button onclick="window.changeChartRange('cto', '2y')" class="cto-range-btn cto-range-2y px-2 py-1 rounded text-gray-500 hover:bg-gray-200 transition-colors">2A</button>
+                                    <button onclick="window.changeChartRange('cto', '5y')" class="cto-range-btn cto-range-5y px-2 py-1 rounded text-gray-500 hover:bg-gray-200 transition-colors">5A</button>
+                                    <button onclick="window.changeChartRange('cto', '10y')" class="cto-range-btn cto-range-10y px-2 py-1 rounded text-gray-500 hover:bg-gray-200 transition-colors">10A</button>
+                                    <button onclick="window.changeChartRange('cto', 'max')" class="cto-range-btn cto-range-max px-2 py-1 rounded text-gray-500 hover:bg-gray-200 transition-colors">Max</button>
+                                </div>
+                            </div>
+                            <div class="relative w-full flex-1 min-h-[180px]"><canvas id="ctoLineChart"></canvas></div>
+                            <div class="flex justify-between items-center text-xs text-gray-500 mt-2 px-2 font-medium">
+                                <span id="cto-min" class="bg-gray-100 px-2 py-1 rounded border border-gray-200">-</span>
+                                <span id="cto-pru-display" class="text-red-500 font-bold border border-red-200 bg-red-50 px-2 py-1 rounded hidden">-</span>
+                                <span id="cto-max" class="bg-gray-100 px-2 py-1 rounded border border-gray-200">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table CTO -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                    <div class="p-4 border-b border-gray-100"><h3 class="font-bold text-gray-800">Détail des positions <span class="text-xs font-normal text-gray-400 ml-2">(Cliquez pour afficher les achats)</span></h3></div>
+                    <div class="table-container overflow-x-auto">
+                        <table class="w-full text-sm text-left text-gray-600 min-w-[1000px]">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th class="px-4 py-3">Nom société</th><th class="px-4 py-3 text-center">Code</th><th class="px-4 py-3 text-right">Qté</th>
+                                    <th class="px-4 py-3 text-right">Montant investi</th><th class="px-4 py-3 text-right">Valorisation</th><th class="px-4 py-3 text-right">PRU</th>
+                                    <th class="px-4 py-3 text-right">Cours Actuel</th><th class="px-4 py-3 text-right">Variation</th><th class="px-4 py-3 text-right">Plus-value</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cto-table-body">
+                                <tr><td colspan="9" class="px-4 py-6 text-center italic text-gray-500">Aucune action dans ce portefeuille. Cliquez sur le "+" en bas à droite.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Dividendes CTO -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                    <div class="p-4 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center bg-yellow-50/50 gap-4">
+                        <h3 class="font-bold text-gray-800 flex items-center"><i class="ph-fill ph-calendar-star text-yellow-500 mr-2 text-lg"></i> Dividendes (CTO)</h3>
+                        <div class="flex flex-wrap gap-2">
+                            <select id="cto-div-view" onchange="window.updateDividendUI('cto')" class="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg p-1.5 cursor-pointer shadow-sm font-medium">
+                                <option value="history">Historique perçu</option>
+                                <option value="forecast">Prévisions annuelles</option>
+                            </select>
+                            <select id="cto-div-year" onchange="window.updateDividendUI('cto')" class="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg p-1.5 cursor-pointer shadow-sm">
+                                <option value="ALL">Toutes les années</option>
+                            </select>
+                            <select id="cto-div-company" onchange="window.updateDividendUI('cto')" class="bg-white border border-gray-300 text-gray-700 text-xs rounded-lg p-1.5 cursor-pointer shadow-sm max-w-[150px] truncate">
+                                <option value="ALL">Toutes les entreprises</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex flex-col md:flex-row gap-4 p-4" id="cto-div-main-container">
+                        <div class="flex-1 table-container overflow-y-auto max-h-[400px] border border-gray-200 rounded" id="cto-dividend-container"></div>
+                        <div id="cto-dividend-chart-container" class="w-full md:w-1/2 relative min-h-[250px]"><canvas id="cto-dividend-chart"></canvas></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== BUDGET ==================== -->
+            <section id="tab-budget" class="p-4 md:p-8 tab-content hidden">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-gray-200 pb-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">Suivi Budget</h2>
+                        <p class="text-gray-500 text-sm" id="budget-user-label">Axel Peyroche</p>
+                    </div>
+                    <div class="flex gap-4 items-center">
+                        <button onclick="window.switchBudgetView('dashboard')" id="btn-budget-dash" class="text-sm font-medium px-4 py-2 rounded-lg transition-colors budget-tab-active">Tableau de bord</button>
+                        <button onclick="window.switchBudgetView('history')" id="btn-budget-hist" class="text-sm font-medium px-4 py-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">Historique</button>
+                    </div>
+                </div>
+                <div id="budget-view-dashboard" class="block">
+                    <div class="flex flex-wrap gap-4 items-center mb-6 justify-between">
+                        <label class="cursor-pointer bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm">
+                            <i class="ph-bold ph-upload-simple"></i> Importer fichier bancaire
+                            <input type="file" id="budget-import-file" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden" onchange="window.handleBudgetImport(event)">
+                        </label>
+                        <div class="flex gap-4 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-semibold uppercase text-gray-500">Mois</span>
+                                <select id="budget-month-filter" onchange="window.renderBudget()" class="bg-gray-50 border border-gray-200 text-sm rounded-md p-1 outline-none font-medium text-blue-700"></select>
+                            </div>
+                            <div class="flex items-center gap-2 border-l pl-4 border-gray-200">
+                                <span class="text-xs font-semibold uppercase text-gray-500">Comparaison</span>
+                                <select id="budget-cmp-filter" onchange="window.renderBudget()" class="bg-gray-50 border border-gray-200 text-sm rounded-md p-1 outline-none"></select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="text-center relative">
+                                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4">Bilan Cashflow</h4>
+                                <div class="relative w-full h-32 flex justify-center">
+                                    <canvas id="budgetSoldeChart"></canvas>
+                                    <div class="absolute inset-0 flex items-center justify-center pointer-events-none mt-2 px-3">
+                                        <span id="budget-kpi-solde" class="text-sm md:text-base font-bold text-gray-800 w-full truncate text-center">0,00 €</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-center relative">
+                                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4">Flux sortants</h4>
+                                <div class="relative w-full h-32 flex justify-center"><canvas id="budgetRepartChart"></canvas></div>
+                                <div id="legend-repart" class="flex justify-center flex-wrap gap-2 mt-2 text-[10px] text-gray-500 min-h-[16px]"></div>
+                            </div>
+                            <div class="text-center relative">
+                                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4">Moyens de paiement</h4>
+                                <div class="relative w-full h-32 flex justify-center"><canvas id="budgetCbChart"></canvas></div>
+                                <div id="legend-cb" class="flex justify-center flex-wrap gap-2 mt-2 text-[10px] text-gray-500 min-h-[16px]"></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 text-center">Comparaison Mensuelle</h4>
+                            <div class="flex justify-center gap-2 mb-2">
+                                <select id="budget-cmp-month-1" onchange="window.updateBudgetCompareChart()" class="bg-gray-50 border border-gray-200 text-xs rounded p-1 outline-none"></select>
+                                <span class="text-xs text-gray-400 self-center">vs</span>
+                                <select id="budget-cmp-month-2" onchange="window.updateBudgetCompareChart()" class="bg-gray-50 border border-gray-200 text-xs rounded p-1 outline-none"></select>
+                            </div>
+                            <div class="relative w-full flex-1 min-h-[120px]"><canvas id="budgetBarChart"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+                        <div class="lg:col-span-8 flex flex-col gap-6" id="budget-tables-container"></div>
+                        <div class="lg:col-span-4 bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                            <h4 class="text-sm font-bold text-gray-700 uppercase tracking-wide mb-6 text-center">Évolution sur 6 mois</h4>
+                            <div class="relative w-full flex-1 min-h-[300px]"><canvas id="budgetEvolChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="budget-view-history" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                        <div class="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                            <h3 class="font-bold text-gray-800"><i class="ph-bold ph-list-bullets mr-2"></i> Historique de tous les mouvements</h3>
+                        </div>
+                        <div id="budget-history-container" class="p-4 flex flex-col gap-6"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ==================== ADMIN ==================== -->
+            <section id="tab-admin" class="p-4 md:p-8 tab-content hidden">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 flex items-center"><i class="ph-fill ph-shield-star text-purple-600 mr-2 text-3xl"></i> Panel Administration</h2>
+                    <p class="text-gray-500 text-sm">Gestion des accès et utilisateurs</p>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-purple-100 bg-purple-50/30">
+                        <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2"><i class="ph-fill ph-user-plus text-purple-600 text-xl"></i> Créer un nouvel utilisateur</h3>
+                        <form onsubmit="window.handleCreateUser(event)" class="flex flex-col gap-4">
+                            <div><label class="block mb-1 text-xs font-medium text-gray-700">Adresse Email</label><input type="email" id="new-user-email" placeholder="Ex: jean@mail.com" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2" required></div>
+                            <div><label class="block mb-1 text-xs font-medium text-gray-700">Identifiant de connexion</label><input type="text" id="new-user-id" placeholder="Ex: jean.dupont" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2" required></div>
+                            <div><label class="block mb-1 text-xs font-medium text-gray-700">Mot de passe</label><input type="text" id="new-user-pass" placeholder="Ex: password123" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2" required></div>
+                            <div>
+                                <label class="block mb-2 text-xs font-medium text-gray-700">Permissions</label>
+                                <div class="flex gap-4 mb-2 bg-white p-3 rounded-lg border border-gray-200">
+                                    <label class="flex items-center gap-2 cursor-pointer text-sm"><input type="checkbox" id="perm-pea" class="w-4 h-4 text-purple-600 focus:ring-purple-500 rounded" checked> PEA</label>
+                                    <label class="flex items-center gap-2 cursor-pointer text-sm"><input type="checkbox" id="perm-cto" class="w-4 h-4 text-purple-600 focus:ring-purple-500 rounded" checked> CTO</label>
+                                    <label class="flex items-center gap-2 cursor-pointer text-sm"><input type="checkbox" id="perm-budget" class="w-4 h-4 text-purple-600 focus:ring-purple-500 rounded" checked> Suivi Budget</label>
+                                </div>
+                            </div>
+                            <div class="flex justify-end mt-2">
+                                <button type="submit" class="text-white bg-purple-600 hover:bg-purple-700 font-medium rounded-lg text-sm px-6 py-2.5 transition-colors flex items-center gap-2">
+                                    <i class="ph-bold ph-plus"></i> Créer le compte et Envoyer Email
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2"><i class="ph-fill ph-users text-gray-600 text-xl"></i> Utilisateurs enregistrés</h3>
+                        <div class="table-container overflow-y-auto max-h-64">
+                            <table class="w-full text-sm text-left text-gray-600">
+                                <thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+                                    <tr><th class="px-4 py-3">Identifiant</th><th class="px-4 py-3">Email</th><th class="px-4 py-3">Accès</th></tr>
+                                </thead>
+                                <tbody id="admin-users-list"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modales (Pop-ups) plein écran et propres -->
+    
+    <!-- Modale Transaction Bourse -->
+    <div id="tx-modal" class="fixed inset-0 bg-white md:bg-gray-900/60 z-[300] hidden flex-col items-center justify-center">
+        <div class="bg-white w-full h-full md:w-11/12 md:max-w-5xl md:h-auto md:max-h-[90vh] md:rounded-2xl shadow-2xl overflow-hidden modal-enter flex flex-col">
+            <div class="p-4 md:p-6 border-b border-gray-100 flex justify-between items-center bg-blue-50/50 sticky top-0 z-10">
+                <h3 class="font-bold text-gray-800 flex items-center gap-2 text-lg md:text-xl" id="tx-modal-title">
+                    <i class="ph-fill ph-plus-circle text-blue-600 text-2xl"></i> Saisir une transaction
+                </h3>
+                <button onclick="window.closeTxModal()" class="text-gray-400 hover:text-red-500 transition-colors p-2"><i class="ph-bold ph-x text-2xl"></i></button>
+            </div>
+            <div class="p-4 md:p-8 overflow-y-auto flex-1 inner-scroll">
+                <form class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" onsubmit="window.handleTransactionSubmit(event)" id="tx-form">
+                    
+                    <div id="tx-modal-port-container">
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Portefeuille</label>
+                        <select id="tx-modal-port" name="port" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" onchange="window.updateModalStockList('tx')">
+                            <option value="pea">PEA</option>
+                            <option value="cto">CTO</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Date</label>
+                        <input type="date" name="date" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Achat / Vente</label>
+                        <select name="type" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                            <option value="Achat">Achat</option>
+                            <option value="Vente">Vente</option>
+                        </select>
+                    </div>
+                    <div class="col-span-1 lg:col-span-1">
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Action / ETF</label>
+                        <select id="form-stock-select" onchange="window.handleStockSelection(this)" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required>
+                            <option value="" disabled selected>Sélectionner une action</option>
+                            <optgroup label="Vos actions" id="form-owned-stocks"></optgroup>
+                            <option value="NEW">+ Nouvelle action...</option>
+                        </select>
+                    </div>
+
+                    <!-- Zone recherche live -->
+                    <div id="new-stock-isin-zone" class="hidden col-span-1 lg:col-span-4 relative">
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Recherche (Nom, Ticker ou ISIN)</label>
+                        <div class="relative">
+                            <input type="text" id="search-input"
+                                placeholder="Ex: TotalEnergies, AAPL..."
+                                class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 pr-10"
+                                autocomplete="off"
+                                oninput="window.liveSearchStock(this)">
+                            <i class="ph ph-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
+                            <ul id="search-results" class="autocomplete-results hidden"></ul>
+                        </div>
+                    </div>
+                    <div id="new-stock-info-zone" class="hidden col-span-1 lg:col-span-4 gap-4 flex flex-col md:flex-row">
+                        <div class="w-full md:w-2/3">
+                            <label class="block mb-1 text-sm font-medium text-gray-700">Nom complet</label>
+                            <input type="text" id="new-stock-name" placeholder="Nom de l'entreprise" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                        </div>
+                        <div class="w-full md:w-1/3">
+                            <label class="block mb-1 text-sm font-medium text-gray-700">Ticker</label>
+                            <input type="text" id="new-stock-code" placeholder="Ex: TTE.PA" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 uppercase">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Nombre d'actions</label>
+                        <input type="number" name="qty" step="any" placeholder="Ex: 4" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required oninput="window.calculateTotalForm(this)">
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Montant unitaire (en €)</label>
+                        <div class="relative">
+                            <input type="number" name="unitPrice" step="any" placeholder="0.00" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 pr-8" required oninput="window.calculateTotalForm(this)">
+                            <span class="absolute inset-y-0 right-3 flex items-center text-gray-500 text-sm pointer-events-none">€</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Montant global (Auto)</label>
+                        <div class="relative">
+                            <input type="text" name="totalInvested" placeholder="0.00" class="bg-gray-100 border border-gray-300 text-gray-900 text-base rounded-lg block w-full p-2.5 pr-8 cursor-not-allowed" readonly>
+                            <span class="absolute inset-y-0 right-3 flex items-center text-gray-500 text-sm pointer-events-none">€</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Frais inclus (en €)</label>
+                        <div class="relative">
+                            <input type="number" name="fees" step="any" placeholder="0.00" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 pr-8" value="0">
+                            <span class="absolute inset-y-0 right-3 flex items-center text-gray-500 text-sm pointer-events-none">€</span>
+                        </div>
+                    </div>
+                    <div class="col-span-1 lg:col-span-4 border-t border-gray-200 mt-4 pt-6 flex flex-col sm:flex-row justify-end gap-3">
+                        <button type="button" id="btn-delete-tx" class="hidden text-white bg-red-600 hover:bg-red-700 font-medium rounded-lg text-base px-6 py-3 transition-colors order-2 sm:order-none" onclick="window.deleteTransaction()"><i class="ph-bold ph-trash"></i> Supprimer</button>
+                        <button type="button" class="text-gray-600 bg-gray-100 hover:bg-gray-200 font-medium rounded-lg text-base px-6 py-3 transition-colors order-3 sm:order-none" onclick="window.closeTxModal()">Annuler</button>
+                        <button type="submit" id="btn-submit-tx" class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-base px-8 py-3 transition-colors flex items-center justify-center gap-2 order-1 sm:order-none shadow-md shadow-blue-500/30">
+                            <i class="ph-bold ph-check"></i> Sauvegarder
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale Dividende -->
+    <div id="div-modal" class="fixed inset-0 bg-white md:bg-gray-900/60 z-[300] hidden flex-col items-center justify-center">
+        <div class="bg-white w-full h-full md:w-11/12 md:max-w-2xl md:h-auto md:max-h-[90vh] md:rounded-2xl shadow-2xl overflow-hidden modal-enter flex flex-col">
+            <div class="p-4 md:p-6 border-b border-gray-100 flex justify-between items-center bg-yellow-50/50 sticky top-0 z-10">
+                <h3 class="font-bold text-gray-800 flex items-center gap-2 text-lg md:text-xl" id="div-modal-title">
+                    <i class="ph-fill ph-coins text-yellow-500 text-2xl"></i> Saisir un dividende
+                </h3>
+                <button onclick="window.closeDivModal()" class="text-gray-400 hover:text-red-500 transition-colors p-2"><i class="ph-bold ph-x text-2xl"></i></button>
+            </div>
+            <div class="p-4 md:p-8 overflow-y-auto flex-1 inner-scroll">
+                <form class="flex flex-col gap-6" id="div-form" onsubmit="window.saveDividend(event)">
+                    
+                    <div id="div-modal-port-container">
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Portefeuille</label>
+                        <select id="div-modal-port" name="port" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-yellow-500 focus:border-yellow-500 block w-full p-2.5" onchange="window.updateModalStockList('div')">
+                            <option value="pea">PEA</option>
+                            <option value="cto">CTO</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Date de versement</label>
+                        <input type="date" name="date" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-yellow-500 focus:border-yellow-500 block w-full p-2.5" required>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Action concernée</label>
+                        <select name="ticker" id="form-div-stock-select" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-yellow-500 focus:border-yellow-500 block w-full p-2.5" required></select>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Montant total perçu (devise d'origine)</label>
+                        <div class="relative">
+                            <input type="number" name="amount" step="0.01" placeholder="0.00" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-yellow-500 focus:border-yellow-500 block w-full p-2.5 pr-14" required>
+                            <span class="absolute inset-y-0 right-3 flex items-center text-gray-500 text-sm pointer-events-none">€/USD</span>
+                        </div>
+                    </div>
+                    <div class="border-t border-gray-200 mt-4 pt-6 flex flex-col sm:flex-row justify-end gap-3">
+                        <button type="button" class="text-gray-600 bg-gray-100 hover:bg-gray-200 font-medium rounded-lg text-base px-6 py-3 transition-colors order-2 sm:order-none" onclick="window.closeDivModal()">Annuler</button>
+                        <button type="submit" id="btn-submit-div" class="text-white bg-yellow-500 hover:bg-yellow-600 font-medium rounded-lg text-base px-8 py-3 transition-colors flex items-center justify-center gap-2 w-full sm:w-auto order-1 sm:order-none shadow-md shadow-yellow-500/30">
+                            <i class="ph-bold ph-plus"></i> Enregistrer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale Mouvement Budget -->
+    <div id="budget-modal" class="fixed inset-0 bg-white md:bg-gray-900/60 z-[300] hidden flex-col items-center justify-center">
+        <div class="bg-white w-full h-full md:w-11/12 md:max-w-4xl md:h-auto md:max-h-[90vh] md:rounded-2xl shadow-2xl overflow-hidden modal-enter flex flex-col">
+            <div class="p-4 md:p-6 border-b border-gray-100 flex justify-between items-center bg-blue-50/50 sticky top-0 z-10">
+                <h3 class="font-bold text-gray-800 flex items-center gap-2 text-lg md:text-xl" id="budget-modal-title">
+                    <i class="ph-fill ph-plus-circle text-blue-600 text-2xl" id="budget-form-icon"></i> Ajouter un mouvement bancaire
+                </h3>
+                <button onclick="window.closeBudgetModal()" class="text-gray-400 hover:text-red-500 transition-colors p-2"><i class="ph-bold ph-x text-2xl"></i></button>
+            </div>
+            <div class="p-4 md:p-8 overflow-y-auto flex-1 inner-scroll">
+                <form class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6" id="budget-tx-form" onsubmit="window.addBudgetMovement(event)">
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Date</label>
+                        <input type="date" name="date" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Type</label>
+                        <select name="type" id="budget-type-select" onchange="window.updateCategoryOptions(this)" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required>
+                            <option value="Revenus">Revenus</option>
+                            <option value="Dépenses fixes">Dépenses fixes</option>
+                            <option value="Dépenses variables">Dépenses variables</option>
+                            <option value="Économies">Économies</option>
+                            <option value="Dettes">Dettes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Catégorie</label>
+                        <select name="category" id="budget-cat-select" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required></select>
+                    </div>
+                    <div>
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Montant</label>
+                        <div class="relative">
+                            <input type="number" name="amount" step="0.01" placeholder="0.00" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 pr-10" required>
+                            <span class="absolute inset-y-0 right-3 flex items-center text-gray-500 text-base pointer-events-none">€</span>
+                        </div>
+                    </div>
+                    <div class="col-span-1 lg:col-span-2">
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Détails (Optionnel)</label>
+                        <input type="text" name="details" placeholder="Ex: Auchan drive, loyer appartement..." class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                    </div>
+                    <div class="col-span-1 lg:col-span-2">
+                        <label class="block mb-1 text-sm font-medium text-gray-700">Carte Bancaire / Compte</label>
+                        <select name="bank" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required>
+                            <option value="Banque Populaire">Banque Populaire</option>
+                            <option value="Trade Republic">Trade Republic</option>
+                            <option value="Bourso Bank">Bourso Bank</option>
+                        </select>
+                    </div>
+                    <div class="col-span-1 lg:col-span-2 border-t border-gray-200 mt-4 pt-6 flex flex-col sm:flex-row justify-end gap-3">
+                        <button type="button" class="text-gray-600 bg-gray-100 hover:bg-gray-200 font-medium rounded-lg text-base px-6 py-3 transition-colors order-2 sm:order-none" onclick="window.closeBudgetModal()">Annuler</button>
+                        <button type="submit" id="budget-btn-submit" class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-base px-8 py-3 transition-colors flex items-center justify-center gap-2 order-1 sm:order-none shadow-md shadow-blue-500/30">
+                            <i class="ph-bold ph-check"></i> Enregistrer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Action Button (FAB) -->
+    <div class="fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-3" id="fab-container">
+        <div id="fab-menu" class="fab-menu flex flex-col gap-2 bg-white p-2 rounded-xl shadow-lg border border-gray-200 mb-2">
+            <button onclick="window.openTxModal()" class="flex items-center gap-3 px-5 py-3 hover:bg-blue-50 rounded-lg text-sm font-semibold text-gray-700 hover:text-blue-600 transition-colors whitespace-nowrap text-left" id="fab-tx-btn">
+                <div class="bg-blue-100 p-1.5 rounded-md"><i class="ph-fill ph-chart-line-up text-xl text-blue-600"></i></div> Nouvelle transaction
+            </button>
+            <button onclick="window.openDivModal()" class="flex items-center gap-3 px-5 py-3 hover:bg-yellow-50 rounded-lg text-sm font-semibold text-gray-700 hover:text-yellow-600 transition-colors whitespace-nowrap text-left" id="fab-div-btn">
+                <div class="bg-yellow-100 p-1.5 rounded-md"><i class="ph-fill ph-coins text-xl text-yellow-600"></i></div> Nouveau dividende
+            </button>
+        </div>
+        <button onclick="window.handleMainFabClick()" class="w-16 h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg shadow-blue-500/40 flex items-center justify-center transition-transform hover:scale-105" id="main-fab" title="Ajouter">
+            <i class="ph-bold ph-plus text-3xl transition-transform duration-300" id="fab-icon"></i>
+        </button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ==========================================
+        // 1. VARIABLES GLOBALES & ETAT
+        // ==========================================
+        let usdToEurRate = 0.92;
+        let db, auth, currentUsername, appId;
+        let authUsersDict = {};
+        let allTransactions = [];
+        let allDividends = [];
+        let allBudgetMovements = [];
+        let portfolioGoal = 10000;
+        let currentTab = 'bourse-recap';
+        let liveUpdateInterval = null;
+        let _searchDebounce = null;
+        let editingTxId = null;
+        let editingDivIdVal = null;
+        let editingBudgetTxId = null;
+        const colorMap = {};
+        const stockDatabase = {};
+        let currentChartRange = { pea: '1y', cto: '1y' };
+
+        const dynamicLabels = Array.from({ length: 52 }, (_, i) => {
+            const d = new Date(); d.setDate(d.getDate() - (51 - i) * 7);
+            return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        });
+
+        const budgetTaxonomy = {
+            "Revenus": ["Salaire", "Prime", "Revenus d'activité indépendante", "Dividendes", "Remboursement d'un tiers", "Remboursement frais Passman", "Retrait paris sportifs", "Intérêts"],
+            "Dépenses fixes": ["Loyer", "Électricité", "Internet", "Forfait de téléphonie mobile", "Mutuelle", "Assurance habitation", "Assurance automobile", "Abonnements stationnement", "Frais carte bancaire", "Virement compte PEL", "Remboursement Élisa", "Abonnement iCloud", "Frais médicaux", "Saveback TR", "Round up TR", "Actions bourse"],
+            "Dépenses variables": ["Courses alimentaires", "Carburant", "Bar", "Restauration", "Vêtements / chaussures", "Pour la maison", "Retrait d'argent", "Entretien automobile", "Loisirs", "Cadeaux", "Coiffeur", "Parking", "Divers", "Transport en commun", "Voyages", "Remboursement", "Dépôt paris sportif", "Péage", "Virement compte LEP"],
+            "Économies": ["Fonds d'urgence", "Épargne à court terme", "Épargne à long terme", "Épargne-retraite", "Épargne pour les études supérieures", "Fonds pour les vacances", "Fonds pour l'entretien de la maison", "Fonds pour l'entretien de la voiture"],
+            "Dettes": ["Prêt immobilier", "Prêt automobile", "Prêts personnels", "Dettes de carte de crédit", "Prêts étudiants", "Prêts aux entreprises", "Prêts sur salaire", "Dettes fiscales"]
+        };
+        const typeColors = { "Revenus": "blue", "Dépenses fixes": "red", "Dépenses variables": "orange", "Économies": "emerald", "Dettes": "purple" };
+
+        let recapPieChartInstance = null, recapGlobalPieChartInstance = null, recapDivHistoryChart = null, recapDivForecastChart = null;
+        let activeLineCharts = { pea: null, cto: null }, pieCharts = { pea: null, cto: null }, dividendCharts = { pea: null, cto: null };
+        const chartCache = {}; // { [ticker]: { [range]: { data: {...}, ts: epoch_ms } } }
+        const CHART_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+        let budgetCharts = { solde: null, repart: null, cb: null, bar: null, evol: null };
+
+        const pastelPalette = [
+            '#A7C7E7', '#FBCFE8', '#FDE047', '#C4B5FD', '#86EFAC', 
+            '#FCA5A5', '#93C5FD', '#F9A8D4', '#FCD34D', '#D8B4FE', '#6EE7B7', '#FBBF24', '#99F6E4'
+        ];
+        let pastelIndex = 0;
+        const getPastelColor = () => {
+            const c = pastelPalette[pastelIndex % pastelPalette.length];
+            pastelIndex++;
+            return c;
+        };
+
+        const eurFmt = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+        const pctFmt = new Intl.NumberFormat('fr-FR', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const numFmt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 4 });
+
+        // ==========================================
+        // 2. FONCTIONS UTILITAIRES & PROXY API
+        // ==========================================
+        window.showToast = function(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `px-4 py-3 rounded shadow-lg text-white font-medium text-sm transition-all duration-300 transform translate-y-0 opacity-100 flex items-center gap-2 ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`;
+            toast.innerHTML = `<i class="ph-bold ${type === 'success' ? 'ph-check-circle' : 'ph-warning-circle'} text-lg"></i> ${message}`;
+            document.getElementById('toast-container').appendChild(toast);
+            setTimeout(() => { toast.classList.add('opacity-0', 'translate-y-2'); }, 3000);
+            setTimeout(() => toast.remove(), 3300);
+        };
+
+        async function fetchDirect(url, timeoutMs = 6000) {
+            const ctrl = new AbortController(); const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+            try { 
+                const r = await fetch(url, { signal: ctrl.signal }); 
+                clearTimeout(tid); 
+                if (r.ok) {
+                    try { return await r.json(); } catch(e) { return null; }
+                } 
+            } catch (e) { clearTimeout(tid); }
+            return null;
+        }
+
+        async function fetchWithProxy(url, timeoutPerProxy = 5000) {
+            const proxies = [
+                { url: `https://api.allorigins.win/get?url=`, type: 'json' },
+                { url: `https://api.codetabs.com/v1/proxy?quest=`, type: 'raw' },
+                { url: `https://corsproxy.io/?`, type: 'raw' }
+            ];
+            
+            for (const proxy of proxies) {
+                try {
+                    const ctrl = new AbortController();
+                    const tid = setTimeout(() => ctrl.abort(), timeoutPerProxy);
+                    const fetchUrl = proxy.url + encodeURIComponent(url);
+                    const r = await fetch(fetchUrl, { signal: ctrl.signal });
+                    clearTimeout(tid);
+                    
+                    if (r.ok) {
+                        if (proxy.type === 'json') {
+                            const data = await r.json();
+                            try { return JSON.parse(data.contents); } catch(e) { throw new Error("Invalid JSON"); }
+                        } else {
+                            try { return await r.json(); } catch(e) { throw new Error("Not JSON"); }
+                        }
+                    }
+                } catch (e) {
+                    // Passe au proxy suivant silencieusement
+                }
+            }
+            throw new Error('All proxies failed');
+        }
+        
+        async function fetchExchangeRate() {
+            try {
+                const r = await fetch('https://open.er-api.com/v6/latest/USD');
+                if (r.ok) {
+                    const data = await r.json();
+                    if (data && data.rates && data.rates.EUR) {
+                        usdToEurRate = data.rates.EUR;
+                        const usdDisplays = document.querySelectorAll('.usd-rate-display');
+                        usdDisplays.forEach(el => el.innerText = `USD/EUR: ${usdToEurRate.toFixed(4)}`);
+                    }
+                }
+            } catch (e) {
+                console.warn("Impossible de récupérer le taux USD/EUR");
+            }
+        }
+
+        // ==========================================
+        // 3. RECHERCHE ACTIONS (AUTOCOMPLETE) - DOUBLE SYSTÈME SÉCURISÉ
+        // ==========================================
+        window.liveSearchStock = function(inputEl) {
+            const query = inputEl.value.trim();
+            const resultsEl = document.getElementById(`search-results`);
+            clearTimeout(_searchDebounce);
+
+            if (query.length < 2) {
+                resultsEl.classList.add('hidden');
+                resultsEl.innerHTML = '';
+                return;
+            }
+
+            resultsEl.innerHTML = '<li class="px-4 py-2 text-xs text-gray-400 italic flex items-center gap-2"><i class="ph ph-circle-notch animate-spin"></i> Recherche en cours...</li>';
+            resultsEl.classList.remove('hidden');
+
+            _searchDebounce = setTimeout(async () => {
+                try {
+                    let validQuotes = [];
+                    
+                    try {
+                        const searchUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&lang=fr-FR&quotesCount=8&newsCount=0&enableFuzzyQuery=true`;
+                        let data = await fetchDirect(searchUrl, 2000);
+                        if (!data) data = await fetchWithProxy(searchUrl, 4000);
+                        
+                        if (data && data.quotes) {
+                            validQuotes = data.quotes.filter(q => q.quoteType === 'EQUITY' || q.quoteType === 'ETF' || q.quoteType === 'MUTUALFUND');
+                        }
+                    } catch(e) {}
+
+                    if (validQuotes.length === 0) {
+                        const tvUrl = `https://symbol-search.tradingview.com/symbol_search/v3/?text=${encodeURIComponent(query)}&hl=1&exchange=&type=stock,fund,dr&domain=production`;
+                        let tvData = await fetchDirect(tvUrl, 3000);
+                        if (!tvData) tvData = await fetchWithProxy(tvUrl, 4000);
+                        
+                        if (tvData && Array.isArray(tvData)) {
+                            validQuotes = tvData.map(q => {
+                                const ex = (q.exchange || '').toUpperCase();
+                                let symbol = q.symbol;
+                                if (['EURONEXT', 'PARIS', 'EPA'].some(e => ex.includes(e))) symbol += '.PA';
+                                else if (['XETR', 'XETRA', 'FWB', 'FRA'].some(e => ex.includes(e))) symbol += '.DE';
+                                else if (['MIL', 'MILAN', 'BIT'].some(e => ex.includes(e))) symbol += '.MI';
+                                else if (['MADRID', 'BME', 'MCE'].some(e => ex.includes(e))) symbol += '.MC';
+                                else if (['AMS', 'AMSTERDAM'].some(e => ex.includes(e))) symbol += '.AS';
+                                else if (['BRU', 'BRUSSELS'].some(e => ex.includes(e))) symbol += '.BR';
+                                else if (['LS', 'LISBON'].some(e => ex.includes(e))) symbol += '.LS';
+                                else if (['LSE', 'LONDON'].some(e => ex.includes(e))) symbol += '.L';
+                                
+                                return {
+                                    symbol: symbol,
+                                    shortname: q.description,
+                                    exchange: q.exchange
+                                };
+                            });
+                        }
+                    }
+
+                    if (validQuotes.length === 0) {
+                        resultsEl.innerHTML = '<li class="px-4 py-2 text-xs text-gray-400 italic">Aucun résultat trouvé</li>';
+                        return;
+                    }
+
+                    const port = document.getElementById('tx-modal-port').value;
+                    if (port === 'pea') {
+                        const euSuffixes = ['.PA', '.AS', '.MI', '.MC', '.DE', '.BR', '.LS', '.ST', '.VI', '.HE', '.CO'];
+                        const euQuotes = validQuotes.filter(q => q.symbol && euSuffixes.some(s => q.symbol.endsWith(s)));
+                        if (euQuotes.length > 0) validQuotes = euQuotes;
+                    }
+
+                    resultsEl.innerHTML = validQuotes.slice(0, 8).map(q => {
+                        const name = (q.shortname || q.longname || q.symbol).replace(/'/g, '&#39;');
+                        const safeName = name.replace(/"/g, '&quot;');
+                        return `<li onclick="window.selectStock('${q.symbol}', '${safeName}')">
+                                    <span class="font-medium text-gray-800 truncate max-w-[200px]">${name}</span>
+                                    <span class="text-xs text-gray-400 shrink-0 flex gap-1">
+                                        <span class="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-mono">${q.symbol}</span>
+                                        <span class="bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded">${q.exchDisp || q.exchange || ''}</span>
+                                    </span>
+                                </li>`;
+                    }).join('');
+                } catch (e) {
+                    resultsEl.innerHTML = '<li class="px-4 py-2 text-xs text-red-400 italic">Erreur de recherche (Réessayez)</li>';
+                }
+            }, 400);
+        };
+
+        window.selectStock = function(symbol, name) {
+            document.getElementById(`new-stock-name`).value = name;
+            document.getElementById(`new-stock-code`).value = symbol;
+            document.getElementById(`search-input`).value = name;
+            const resultsEl = document.getElementById(`search-results`);
+            resultsEl.classList.add('hidden');
+            resultsEl.innerHTML = '';
+        };
+
+        document.addEventListener('click', (e) => {
+            const zone = document.getElementById(`new-stock-isin-zone`);
+            const el = document.getElementById(`search-results`);
+            if (el && zone && !zone.contains(e.target)) el.classList.add('hidden');
+        });
+
+        // ==========================================
+        // 4. MODALES & BOUTON FLOTTANT (FAB)
+        // ==========================================
+        window.handleMainFabClick = function() {
+            if (currentTab === 'budget') {
+                window.openBudgetModal();
+            } else {
+                window.toggleFabMenu();
+            }
+        };
+
+        window.toggleFabMenu = function() {
+            const menu = document.getElementById('fab-menu');
+            const icon = document.getElementById('fab-icon');
+            menu?.classList.toggle('active');
+            if (menu?.classList.contains('active')) {
+                if (icon) {
+                    icon.classList.remove('ph-plus'); icon.classList.add('ph-x'); icon.style.transform = "rotate(90deg)";
+                }
+            } else {
+                if (icon) {
+                    icon.classList.add('ph-plus'); icon.classList.remove('ph-x'); icon.style.transform = "rotate(0deg)";
+                }
+            }
+        };
+
+        window.updateModalStockList = function(type) {
+            const port = document.getElementById(`${type}-modal-port`).value;
+            if (type === 'tx') {
+                const sel = document.getElementById('form-stock-select');
+                const prevVal = sel.value;
+                sel.innerHTML = '<option value="" disabled selected>Sélectionner une action</option><optgroup label="Vos actions" id="form-owned-stocks"></optgroup><option value="NEW">+ Nouvelle action...</option>';
+                const optGroup = document.getElementById('form-owned-stocks');
+                const { positions } = getAggregatedPositions(port);
+                positions.forEach(p => optGroup.insertAdjacentHTML('beforeend', `<option value="${p.ticker}">${p.name} (${p.ticker})</option>`));
+                if ([...sel.options].some(o => o.value === prevVal)) sel.value = prevVal; else sel.value = '';
+                window.handleStockSelection(sel);
+            } else {
+                const sel = document.getElementById('form-div-stock-select');
+                const prevVal = sel.value;
+                sel.innerHTML = '';
+                const { positions } = getAggregatedPositions(port);
+                positions.forEach(p => sel.insertAdjacentHTML('beforeend', `<option value="${p.ticker}">${p.name} (${p.ticker})</option>`));
+                if ([...sel.options].some(o => o.value === prevVal)) sel.value = prevVal;
+            }
+        };
+
+        window.openTxModal = function(port = null) {
+            if (typeof port !== 'string') port = (currentTab === 'pea' || currentTab === 'cto') ? currentTab : 'pea';
+            
+            const portSelect = document.getElementById('tx-modal-port');
+            portSelect.value = port;
+            
+            const portContainer = document.getElementById('tx-modal-port-container');
+            if (currentTab === 'bourse-recap') {
+                portContainer.classList.remove('hidden');
+            } else {
+                portContainer.classList.add('hidden');
+            }
+            
+            document.getElementById('tx-modal-title').innerHTML = `<i class="ph-fill ph-plus-circle text-blue-600 text-2xl"></i> Saisir une transaction`;
+            document.getElementById('tx-modal').classList.remove('hidden');
+            document.getElementById('tx-modal').classList.add('flex');
+            
+            window.updateModalStockList('tx');
+            if(document.getElementById('fab-menu').classList.contains('active')) window.toggleFabMenu();
+        };
+
+        window.closeTxModal = function() {
+            document.getElementById('tx-modal').classList.add('hidden');
+            document.getElementById('tx-modal').classList.remove('flex');
+            document.getElementById('tx-form').reset();
+            window.handleStockSelection(document.getElementById('form-stock-select'));
+            editingTxId = null;
+            document.getElementById('btn-delete-tx').classList.add('hidden');
+            document.getElementById('btn-submit-tx').innerHTML = '<i class="ph-bold ph-check"></i> Sauvegarder';
+        };
+
+        window.openDivModal = function(port = null) {
+            if (typeof port !== 'string') port = (currentTab === 'pea' || currentTab === 'cto') ? currentTab : 'pea';
+            
+            const portSelect = document.getElementById('div-modal-port');
+            portSelect.value = port;
+            
+            const portContainer = document.getElementById('div-modal-port-container');
+            if (currentTab === 'bourse-recap') {
+                portContainer.classList.remove('hidden');
+            } else {
+                portContainer.classList.add('hidden');
+            }
+            
+            document.getElementById('div-modal-title').innerHTML = `<i class="ph-fill ph-coins text-yellow-500 text-2xl"></i> Saisir un dividende`;
+            document.getElementById('div-modal').classList.remove('hidden');
+            document.getElementById('div-modal').classList.add('flex');
+
+            window.updateModalStockList('div');
+            if(document.getElementById('fab-menu').classList.contains('active')) window.toggleFabMenu();
+        };
+
+        window.closeDivModal = function() {
+            document.getElementById('div-modal').classList.add('hidden');
+            document.getElementById('div-modal').classList.remove('flex');
+            document.getElementById('div-form').reset();
+            editingDivIdVal = null;
+            document.getElementById('btn-submit-div').innerHTML = '<i class="ph-bold ph-plus"></i> Enregistrer';
+        };
+        
+        window.openBudgetModal = function() {
+            document.getElementById('budget-modal').classList.remove('hidden');
+            document.getElementById('budget-modal').classList.add('flex');
+            if(document.getElementById('fab-menu')?.classList.contains('active')) window.toggleFabMenu();
+            window.updateCategoryOptions(document.getElementById('budget-type-select'));
+        };
+        
+        window.closeBudgetModal = function() {
+            document.getElementById('budget-modal').classList.add('hidden');
+            document.getElementById('budget-modal').classList.remove('flex');
+            document.getElementById('budget-tx-form').reset();
+            editingBudgetTxId = null;
+            document.getElementById('budget-modal-title').innerHTML = '<i class="ph-fill ph-plus-circle text-blue-600 text-2xl"></i> Ajouter un mouvement bancaire';
+            document.getElementById('budget-btn-submit').innerHTML = '<i class="ph-bold ph-check"></i> Enregistrer';
+        };
+
+        // ==========================================
+        // 5. GESTION DES POSITIONS BOURSIERES (AVEC FRAIS)
+        // ==========================================
+        function getAggregatedPositions(portfolio) {
+            let positionsMap = {};
+            const txs = allTransactions.filter(t => t.port === portfolio).sort((a,b) => new Date(a.date) - new Date(b.date));
+            
+            txs.forEach(t => {
+                if (!positionsMap[t.ticker]) {
+                    positionsMap[t.ticker] = { ticker: t.ticker, name: t.name, qty: 0, invested: 0, history: [], pru: 0 };
+                }
+                let pos = positionsMap[t.ticker];
+                let cost = t.qty * t.unitPrice;
+                let fees = t.fees || 0;
+
+                if (t.type === 'Achat') {
+                    pos.invested += cost + fees;
+                    pos.qty += t.qty;
+                    if (pos.qty > 0) pos.pru = pos.invested / pos.qty;
+                } else if (t.type === 'Vente') {
+                    pos.qty -= t.qty;
+                    if (pos.qty > 0) {
+                        pos.invested = pos.qty * pos.pru;
+                    } else {
+                        pos.invested = 0;
+                        pos.pru = 0;
+                    }
+                }
+                pos.history.push(t);
+            });
+
+            let positions = Object.values(positionsMap).filter(p => p.qty > 0);
+            let portfolioTotalInvested = positions.reduce((s, p) => s + p.invested, 0);
+
+            positions.forEach(p => {
+                let dbEntry = stockDatabase[p.ticker];
+                p.currentPrice = dbEntry?.currentPrice || (dbEntry?.history?.length > 0 ? dbEntry.history[dbEntry.history.length - 1] : p.pru);
+                p.valorisation = p.qty * p.currentPrice;
+                p.plusValue = p.valorisation - p.invested;
+                p.variation = p.pru > 0 ? (p.currentPrice - p.pru) / p.pru : 0;
+                p.weightPct = portfolioTotalInvested > 0 ? p.invested / portfolioTotalInvested : 0;
+            });
+            positions.sort((a, b) => b.valorisation - a.valorisation);
+            return { positions, portfolioTotalInvested };
+        }
+
+        window.savePortfolioGoal = async function(e) {
+            e.preventDefault();
+            const val = parseFloat(document.getElementById('portfolio-goal-input').value);
+            if (!isNaN(val) && val > 0) {
+                portfolioGoal = val;
+                window.renderDashboard();
+                await window.saveDataToFirebase();
+                window.showToast("Objectif mis à jour !");
+            }
+        };
+
+        function renderBourseRecap() {
+            const peaData = getAggregatedPositions('pea');
+            const ctoData = getAggregatedPositions('cto');
+            let peaVal = 0, ctoVal = 0;
+            let totalInvested = peaData.portfolioTotalInvested + ctoData.portfolioTotalInvested;
+            peaData.positions.forEach(p => peaVal += p.valorisation);
+            ctoData.positions.forEach(p => ctoVal += p.valorisation);
+            let totalVal = peaVal + ctoVal;
+            let profit = totalVal - totalInvested;
+            
+            let totalDivs = 0, divHistPEA = 0, divHistCTO = 0;
+            allDividends.forEach(d => {
+                const db = stockDatabase[d.ticker];
+                let amt = d.amount;
+                if (db && db.currency === 'USD') amt = amt * usdToEurRate;
+                totalDivs += amt;
+                if (d.port === 'pea') divHistPEA += amt; else divHistCTO += amt;
+            });
+
+            document.getElementById('recap-kpi-invest').innerText = eurFmt.format(totalInvested);
+            document.getElementById('recap-kpi-val').innerText = eurFmt.format(totalVal);
+            const profitEl = document.getElementById('recap-kpi-profit');
+            profitEl.innerText = (profit >= 0 ? '+ ' : '') + eurFmt.format(profit);
+            profitEl.className = `text-2xl font-bold ${profit >= 0 ? 'text-green-700' : 'text-red-700'}`;
+            document.getElementById('recap-kpi-profit-container').className = `p-5 rounded-xl shadow-sm border flex flex-col justify-center transition-colors ${profit >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`;
+            document.getElementById('recap-kpi-div').innerText = eurFmt.format(totalDivs);
+            document.getElementById('recap-pea-val').innerText = eurFmt.format(peaVal);
+            document.getElementById('recap-cto-val').innerText = eurFmt.format(ctoVal);
+
+            document.getElementById('portfolio-goal-input').value = portfolioGoal;
+            document.getElementById('display-goal-val').innerText = eurFmt.format(portfolioGoal);
+            let progress = Math.min((totalVal / portfolioGoal) * 100, 100);
+            document.getElementById('display-goal-pct').innerText = pctFmt.format(progress / 100);
+            document.getElementById('goal-progress-bar').style.width = `${progress}%`;
+
+            if (recapPieChartInstance) { recapPieChartInstance.data.datasets[0].data = [peaVal, ctoVal]; recapPieChartInstance.update(); }
+            if (recapGlobalPieChartInstance) {
+                let allPosMap = {};
+                [...peaData.positions, ...ctoData.positions].forEach(p => {
+                    if (!allPosMap[p.ticker]) allPosMap[p.ticker] = { name: p.name, ticker: p.ticker, qty: 0, val: 0 };
+                    allPosMap[p.ticker].qty += p.qty;
+                    allPosMap[p.ticker].val += p.valorisation;
+                });
+                let arr = Object.values(allPosMap).sort((a, b) => b.val - a.val);
+                recapGlobalPieChartInstance.data.labels = arr.map(p => p.name);
+                recapGlobalPieChartInstance.data.datasets[0].data = arr.map(p => p.val);
+                recapGlobalPieChartInstance.data.datasets[0].customQty = arr.map(p => p.qty);
+                recapGlobalPieChartInstance.data.datasets[0].backgroundColor = arr.map(p => colorMap[p.ticker] || getPastelColor());
+                recapGlobalPieChartInstance.update();
+            }
+            if (recapDivHistoryChart) { recapDivHistoryChart.data.datasets[0].data = [divHistPEA, divHistCTO]; recapDivHistoryChart.update(); }
+            if (recapDivForecastChart) {
+                let fPea = 0, fCto = 0;
+                peaData.positions.forEach(p => { fPea += p.qty * (stockDatabase[p.ticker]?.div?.annual || 0); });
+                ctoData.positions.forEach(p => { fCto += p.qty * (stockDatabase[p.ticker]?.div?.annual || 0); });
+                recapDivForecastChart.data.datasets[0].data = [fPea, fCto]; recapDivForecastChart.update();
+            }
+        }
+
+        function renderPortfolio(port) {
+            const data = getAggregatedPositions(port);
+            const tbody = document.getElementById(`${port}-table-body`);
+            tbody.innerHTML = '';
+            let totalInvested = 0, totalVal = 0, pieLabels = [], pieData = [], pieColors = [];
+
+            data.positions.forEach(p => {
+                totalInvested += p.invested; totalVal += p.valorisation;
+                if (!stockDatabase[p.ticker]) {
+                    stockDatabase[p.ticker] = { name: p.name, exchange: '-', currency: 'EUR', currentPrice: p.pru, history: [], div: { annual: 0, freq: 0 }, eps: '-', ytd: null };
+                    if(!colorMap[p.ticker]) colorMap[p.ticker] = getPastelColor();
+                }
+                pieLabels.push(p.name); pieData.push(p.valorisation); pieColors.push(colorMap[p.ticker] || getPastelColor());
+
+                let historyHtml = p.history.map(t => `
+                    <tr class="border-b border-gray-50 hover:bg-gray-100">
+                        <td class="px-3 py-2 text-center"><i class="ph-bold ph-pencil-simple cursor-pointer text-blue-500 hover:text-blue-700" onclick="window.editTransaction(${t.id}, '${port}')"></i></td>
+                        <td class="px-3 py-2">${new Date(t.date).toLocaleDateString('fr-FR')}</td>
+                        <td class="px-3 py-2 ${t.type === 'Achat' ? 'text-blue-600' : 'text-orange-500'} font-medium">${t.type}</td>
+                        <td class="px-3 py-2 text-right">${numFmt.format(t.qty)}</td>
+                        <td class="px-3 py-2 text-right">${eurFmt.format(t.unitPrice)}</td>
+                        <td class="px-3 py-2 text-right">${eurFmt.format(t.fees)}</td>
+                        <td class="px-3 py-2 text-right font-medium">${eurFmt.format(t.qty * t.unitPrice)}</td>
+                    </tr>`).join('') || `<tr><td colspan="7" class="px-3 py-2 text-center text-gray-500 italic">Aucune transaction</td></tr>`;
+
+                const rowId = `${port}-${p.ticker.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+                tbody.insertAdjacentHTML('beforeend', `
+                    <tr class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors" onclick="window.toggleDetails('${rowId}-details', '${rowId}-icon', event)">
+                        <td class="px-4 py-3 font-medium text-gray-900 flex items-center gap-2"><i id="${rowId}-icon" class="ph-bold ph-caret-right text-gray-400 transition-transform"></i> ${p.name}</td>
+                        <td class="px-4 py-3 text-center">${p.ticker}</td>
+                        <td class="px-4 py-3 text-right">${numFmt.format(p.qty)}</td>
+                        <td class="px-4 py-3 text-right bg-blue-50/50">${eurFmt.format(p.invested)} <span class="text-[10px] text-blue-600 ml-1">(${pctFmt.format(p.weightPct)})</span></td>
+                        <td class="px-4 py-3 text-right font-medium">${eurFmt.format(p.valorisation)}</td>
+                        <td class="px-4 py-3 text-right">${eurFmt.format(p.pru)}</td>
+                        <td class="px-4 py-3 text-right font-semibold">
+                            <span class="flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="Live"></span>${eurFmt.format(p.currentPrice)}</span>
+                        </td>
+                        <td class="px-4 py-3 text-right font-medium ${p.variation >= 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}">${p.variation > 0 ? '+' : ''}${pctFmt.format(p.variation)}</td>
+                        <td class="px-4 py-3 text-right ${p.plusValue >= 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}">${p.plusValue > 0 ? '+' : ''}${eurFmt.format(p.plusValue)}</td>
+                    </tr>
+                    <tr id="${rowId}-details" class="hidden bg-gray-50 shadow-inner">
+                        <td colspan="9" class="p-4 border-b border-gray-200">
+                            <div class="max-h-48 overflow-y-auto inner-scroll rounded border border-gray-200 bg-white">
+                                <table class="w-full text-xs text-left text-gray-600">
+                                    <thead class="bg-gray-100 sticky top-0 border-b border-gray-200">
+                                        <tr><th class="px-3 py-2 w-10">Edit</th><th class="px-3 py-2">Date</th><th class="px-3 py-2">Type</th><th class="px-3 py-2 text-right">Qté</th><th class="px-3 py-2 text-right">Prix</th><th class="px-3 py-2 text-right">Frais</th><th class="px-3 py-2 text-right">Total</th></tr>
+                                    </thead>
+                                    <tbody class="text-gray-700">${historyHtml}</tbody>
+                                </table>
+                            </div>
+                        </td>
+                    </tr>`);
+            });
+
+            if (data.positions.length === 0) tbody.innerHTML = `<tr><td colspan="9" class="px-4 py-6 text-center italic text-gray-500">Aucune action dans ce portefeuille. Cliquez sur le bouton + pour en ajouter.</td></tr>`;
+
+            const profit = totalVal - totalInvested;
+            const yieldPct = totalInvested > 0 ? profit / totalInvested : 0;
+            
+            let div = 0;
+            allDividends.filter(d => d.port === port).forEach(d => {
+                const db = stockDatabase[d.ticker];
+                let amt = d.amount; if (db && db.currency === 'USD') amt *= usdToEurRate; div += amt;
+            });
+
+            document.getElementById(`${port}-kpi-invest`).innerText = eurFmt.format(totalInvested);
+            document.getElementById(`${port}-kpi-val`).innerText = eurFmt.format(totalVal);
+            const profitEl = document.getElementById(`${port}-kpi-profit`);
+            profitEl.innerText = (profit >= 0 ? '+ ' : '') + eurFmt.format(profit);
+            profitEl.className = `text-lg font-bold ${profit >= 0 ? 'text-green-700' : 'text-red-700'}`;
+            document.getElementById(`${port}-kpi-profit-container`).className = `p-4 rounded-xl shadow-sm border transition-colors ${profit >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`;
+            const yieldEl = document.getElementById(`${port}-kpi-yield`);
+            yieldEl.innerText = (yieldPct >= 0 ? '+ ' : '') + pctFmt.format(yieldPct);
+            yieldEl.className = `text-lg font-bold ${yieldPct >= 0 ? 'text-green-700' : 'text-red-700'}`;
+            document.getElementById(`${port}-kpi-yield-container`).className = `p-4 rounded-xl shadow-sm border transition-colors ${yieldPct >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`;
+            document.getElementById(`${port}-kpi-div`).innerText = eurFmt.format(div);
+            document.getElementById(`${port}-kpi-div-ratio`).innerText = pctFmt.format(totalInvested > 0 ? div / totalInvested : 0);
+
+            if (pieCharts[port]) {
+                pieCharts[port].data.labels = pieLabels; pieCharts[port].data.datasets[0].data = pieData; pieCharts[port].data.datasets[0].backgroundColor = pieColors; pieCharts[port].update();
+                const emptyEl = document.getElementById(`${port}-empty-pie`); if (emptyEl) emptyEl.classList.toggle('hidden', pieData.length > 0);
+            }
+
+            if (data.positions.length > 0) {
+                const selEl = document.getElementById(`${port}-stock-select`);
+                const ticker = (selEl && selEl.value) ? selEl.value : data.positions[0].ticker;
+                window.updateStockData(port, ticker);
+            } else {
+                ['exchange', 'eps', 'ytd', 'min', 'max'].forEach(id => {
+                    const el = document.getElementById(`${port}-${id}`);
+                    if(el) {
+                        el.innerText = '-';
+                        if (id === 'ytd') el.className = 'text-sm font-bold text-gray-800';
+                    }
+                });
+                const pruDisplay = document.getElementById(`${port}-pru-display`);
+                if (pruDisplay) pruDisplay.classList.add('hidden');
+                
+                if (activeLineCharts[port]) { 
+                    activeLineCharts[port].data.datasets[0].data = []; 
+                    activeLineCharts[port].data.datasets[1].data = []; 
+                    activeLineCharts[port].update(); 
+                }
+            }
+        }
+
+        window.changeChartRange = async function(port, range) {
+            currentChartRange[port] = range;
+            
+            document.querySelectorAll(`.${port}-range-btn`).forEach(b => {
+                b.classList.remove('bg-white', 'shadow-sm', 'text-blue-600', 'font-bold');
+                b.classList.add('text-gray-500', 'hover:bg-gray-200');
+            });
+            const activeBtn = document.querySelector(`.${port}-range-${range}`);
+            if(activeBtn) {
+                activeBtn.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-bold');
+                activeBtn.classList.remove('text-gray-500', 'hover:bg-gray-200');
+            }
+            
+            const sel = document.getElementById(`${port}-stock-select`);
+            if(sel && sel.value) {
+                const minEl = document.getElementById(`${port}-min`);
+                const maxEl = document.getElementById(`${port}-max`);
+                if(minEl) minEl.innerHTML = '<i class="ph ph-spinner animate-spin text-blue-500"></i>';
+                if(maxEl) maxEl.innerHTML = 'Chargement...';
+                
+                await fetchChartHistory(sel.value, range);
+                window.updateStockData(port, sel.value);
+            }
+        };
+
+        window.updateStockData = function(portfolio, stockCode) {
+            if (!stockCode) return;
+            const data = stockDatabase[stockCode];
+            if (!data) return;
+
+            document.getElementById(`${portfolio}-exchange`).innerText = data.exchange || '-';
+            document.getElementById(`${portfolio}-eps`).innerText = data.eps || '-';
+
+            const ytdEl = document.getElementById(`${portfolio}-ytd`);
+            if (data.ytd !== null && data.ytd !== undefined) {
+                ytdEl.innerText = (data.ytd > 0 ? '+' : '') + pctFmt.format(data.ytd);
+                ytdEl.className = `text-sm font-bold ${data.ytd >= 0 ? 'text-green-600' : 'text-red-600'}`;
+            } else {
+                ytdEl.innerText = '-';
+                ytdEl.className = 'text-sm font-bold text-gray-800';
+            }
+
+            const { positions } = getAggregatedPositions(portfolio);
+            const pos = positions.find(p => p.ticker === stockCode);
+            const pru = pos ? pos.pru : 0;
+
+            const history = data.history || [];
+            const timestamps = data.timestamps || [];
+            
+            if (history.length > 0) {
+                const minVal = Math.min(...history); const maxVal = Math.max(...history);
+                document.getElementById(`${portfolio}-min`).innerText = `Min: ${eurFmt.format(minVal)}`;
+                document.getElementById(`${portfolio}-max`).innerText = `Max: ${eurFmt.format(maxVal)}`;
+
+                const pruDisplay = document.getElementById(`${portfolio}-pru-display`);
+                if (pruDisplay) {
+                    if (pru > 0) {
+                        pruDisplay.innerText = `PRU: ${eurFmt.format(pru)}`;
+                        pruDisplay.classList.remove('hidden');
+                    } else {
+                        pruDisplay.classList.add('hidden');
+                    }
+                }
+
+                const chart = activeLineCharts[portfolio];
+                if (chart) {
+                    chart.data.datasets[0].label = data.name || stockCode; 
+                    chart.data.datasets[0].data = history;
+                    
+                    let newLabels = dynamicLabels;
+                    if (timestamps.length === history.length && timestamps.length > 0) {
+                        newLabels = timestamps.map(ts => {
+                            const d = new Date(ts * 1000);
+                            return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        });
+                    } else {
+                        newLabels = history.length <= dynamicLabels.length ? dynamicLabels.slice(dynamicLabels.length - history.length) : dynamicLabels;
+                    }
+                    chart.data.labels = newLabels;
+
+                    chart.data.datasets[0].borderColor = colorMap[stockCode] || '#2563eb'; 
+                    chart.data.datasets[0].backgroundColor = (colorMap[stockCode] || '#2563eb') + '22';
+                    
+                    chart.data.datasets[1].data = Array(history.length).fill(pru);
+
+                    const allVals = [...history, pru].filter(v => v > 0);
+                    const absMin = Math.min(...allVals);
+                    const absMax = Math.max(...allVals);
+                    const pad = (absMax - absMin) * 0.1 || 1; 
+                    chart.options.scales.y.min = absMin - pad; 
+                    chart.options.scales.y.max = absMax + pad;
+                    
+                    chart.update();
+                }
+            } else {
+                document.getElementById(`${portfolio}-min`).innerText = '-'; document.getElementById(`${portfolio}-max`).innerText = '-';
+                const pruDisplay = document.getElementById(`${portfolio}-pru-display`);
+                if (pruDisplay) pruDisplay.classList.add('hidden');
+                
+                if (activeLineCharts[portfolio]) { 
+                    activeLineCharts[portfolio].data.datasets[0].data = []; 
+                    activeLineCharts[portfolio].data.datasets[1].data = []; 
+                    activeLineCharts[portfolio].update(); 
+                }
+            }
+        };
+
+        window.toggleDetails = function(rowId, iconId, event) {
+            if (event?.target?.tagName === 'I' && event.target.classList.contains('ph-pencil-simple')) return;
+            const row = document.getElementById(rowId); const icon = document.getElementById(iconId);
+            if (!row) return;
+            row.classList.toggle('hidden'); icon?.classList.toggle('expanded-icon', !row.classList.contains('hidden'));
+        };
+
+        window.calculateTotalForm = function(inputElement) {
+            const form = inputElement.closest('form');
+            const qty = parseFloat(form.querySelector('input[name="qty"]').value.replace(',', '.')) || 0;
+            const price = parseFloat(form.querySelector('input[name="unitPrice"]').value.replace(',', '.')) || 0;
+            const totalInput = form.querySelector('input[name="totalInvested"]');
+            if (totalInput) totalInput.value = (qty * price).toFixed(2);
+        };
+
+        window.handleStockSelection = function(select) {
+            const val = select.value;
+            document.getElementById(`new-stock-isin-zone`)?.classList.toggle('hidden', val !== 'NEW');
+            document.getElementById(`new-stock-info-zone`)?.classList.toggle('hidden', val !== 'NEW');
+            if (val === 'NEW') {
+                const si = document.getElementById(`search-input`); if (si) si.value = '';
+                const sr = document.getElementById(`search-results`); if (sr) { sr.innerHTML = ''; sr.classList.add('hidden'); }
+            }
+        };
+
+        window.editTransaction = function(id, port) {
+            const tx = allTransactions.find(t => t.id === id);
+            if (!tx) return;
+            editingTxId = id; window.openTxModal(port);
+            const form = document.getElementById(`tx-form`);
+            form.querySelector('input[name="date"]').value = tx.date;
+            const stockSelect = document.getElementById(`form-stock-select`);
+            if ([...stockSelect.options].some(o => o.value === tx.ticker)) {
+                stockSelect.value = tx.ticker; window.handleStockSelection(stockSelect);
+            } else {
+                stockSelect.value = 'NEW'; window.handleStockSelection(stockSelect);
+                document.getElementById(`new-stock-name`).value = tx.name;
+                document.getElementById(`new-stock-code`).value = tx.ticker;
+                document.getElementById(`search-input`).value = tx.name;
+            }
+            form.querySelector('select[name="type"]').value = tx.type;
+            form.querySelector('input[name="qty"]').value = tx.qty;
+            form.querySelector('input[name="unitPrice"]').value = tx.unitPrice;
+            form.querySelector('input[name="fees"]').value = tx.fees;
+            window.calculateTotalForm(form.querySelector('input[name="qty"]'));
+            document.getElementById(`btn-submit-tx`).innerHTML = `<i class="ph-bold ph-check"></i> Modifier`;
+            document.getElementById(`btn-delete-tx`).classList.remove('hidden');
+        };
+
+        window.deleteTransaction = async function() {
+            if (editingTxId !== null && confirm("Supprimer cette transaction ?")) {
+                allTransactions = allTransactions.filter(t => t.id !== editingTxId);
+                window.showToast("Transaction supprimée."); window.closeTxModal(); window.renderDashboard(); await window.saveDataToFirebase();
+            }
+        };
+
+        window.handleTransactionSubmit = async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const port = document.getElementById('tx-modal-port').value;
+            let tickerSelect = document.getElementById(`form-stock-select`);
+            let ticker = tickerSelect?.value; let name = '';
+            if (ticker === 'NEW') {
+                ticker = (document.getElementById(`new-stock-code`).value || '').toUpperCase().trim();
+                name = (document.getElementById(`new-stock-name`).value || '').trim();
+                if (!ticker) { window.showToast("Saisir un Ticker valide.", 'error'); return; }
+                if (!name) name = ticker;
+                if (!stockDatabase[ticker]) {
+                    const sp = parseFloat(form.querySelector('input[name="unitPrice"]').value) || 0;
+                    stockDatabase[ticker] = { name, exchange: '-', currency: 'EUR', currentPrice: sp, history: [], div: { annual: 0, freq: 0 }, eps: '-', ytd: null };
+                    colorMap[ticker] = getPastelColor();
+                }
+            } else { name = stockDatabase[ticker]?.name || allTransactions.find(t => t.ticker === ticker)?.name || ticker; }
+
+            const txData = {
+                port, date: form.querySelector('input[name="date"]').value, name, ticker, type: form.querySelector('select[name="type"]').value,
+                qty: parseFloat(form.querySelector('input[name="qty"]').value.replace(',', '.')),
+                unitPrice: parseFloat(form.querySelector('input[name="unitPrice"]').value.replace(',', '.')),
+                fees: parseFloat(form.querySelector('input[name="fees"]').value.replace(',', '.')) || 0
+            };
+            if (editingTxId !== null) {
+                const idx = allTransactions.findIndex(t => t.id === editingTxId); allTransactions[idx] = { ...allTransactions[idx], ...txData }; window.showToast('Transaction modifiée !');
+            } else { txData.id = Date.now(); allTransactions.push(txData); window.showToast('Transaction enregistrée !'); }
+            window.closeTxModal(); window.renderDashboard(); await window.saveDataToFirebase();
+            window.showToast("Actualisation des cours...", "success"); await fetchLivePrices();
+        };
+
+        // ==========================================
+        // 6. GESTION DES DIVIDENDES
+        // ==========================================
+        window.saveDividend = async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const port = document.getElementById('div-modal-port').value;
+            const amount = parseFloat(form.querySelector('input[name="amount"]').value.replace(',', '.'));
+            if (isNaN(amount) || amount <= 0) { window.showToast('Montant invalide', 'error'); return; }
+            const dateVal = form.querySelector('input[name="date"]').value;
+            const tickerVal = form.querySelector('select[name="ticker"]').value;
+            if (!dateVal || !tickerVal) { window.showToast('Remplir tous champs', 'error'); return; }
+            const divData = { port, date: dateVal, ticker: tickerVal, amount };
+
+            if (editingDivIdVal) {
+                const idx = allDividends.findIndex(d => d.id === editingDivIdVal);
+                if (idx > -1) { divData.id = editingDivIdVal; allDividends[idx] = divData; }
+                window.showToast('Dividende modifié !');
+            } else { divData.id = String(Date.now()); allDividends.push(divData); window.showToast('Dividende enregistré !'); }
+            window.closeDivModal(); window.renderDashboard(); await window.saveDataToFirebase();
+        };
+
+        window.editDividend = function(id, port) {
+            const div = allDividends.find(d => d.id === String(id)); if (!div) return;
+            editingDivIdVal = String(id); window.openDivModal(port);
+            const form = document.getElementById(`div-form`);
+            document.getElementById('div-modal-port').value = div.port;
+            form.querySelector('input[name="date"]').value = div.date;
+            form.querySelector('select[name="ticker"]').value = div.ticker;
+            form.querySelector('input[name="amount"]').value = div.amount;
+            document.getElementById(`btn-submit-div`).innerHTML = `<i class="ph-bold ph-check"></i> Modifier`;
+        };
+
+        window.deleteDividend = async function(id, port) {
+            if (confirm("Supprimer ce dividende ?")) {
+                allDividends = allDividends.filter(d => d.id !== String(id));
+                window.showToast("Dividende supprimé."); window.renderDashboard(); await window.saveDataToFirebase();
+            }
+        };
+
+        window.updateDividendChart = function(port) {
+            const divs = allDividends.filter(d => d.port === port);
+            const yearFilter = document.getElementById(`${port}-div-year`)?.value;
+            const compFilter = document.getElementById(`${port}-div-company`)?.value;
+            let filteredDivs = divs;
+            if(compFilter !== 'ALL') filteredDivs = filteredDivs.filter(d => d.ticker === compFilter);
+            let years = [...new Set(filteredDivs.map(d => new Date(d.date).getFullYear()))].sort();
+            if(yearFilter !== 'ALL') years = [parseInt(yearFilter)];
+            const companies = [...new Set(filteredDivs.map(d => d.ticker))];
+            
+            const datasets = companies.map(ticker => {
+                const db = stockDatabase[ticker];
+                return {
+                    label: db?.name || ticker,
+                    data: years.map(y => {
+                        let sum = 0;
+                        filteredDivs.forEach(d => {
+                            if (d.ticker === ticker && new Date(d.date).getFullYear() === y) {
+                                let amt = d.amount; if(db && db.currency === 'USD') amt *= usdToEurRate; sum += amt;
+                            }
+                        });
+                        return sum;
+                    }),
+                    backgroundColor: colorMap[ticker] || getPastelColor()
+                }
+            });
+            if (dividendCharts[port]) { dividendCharts[port].data.labels = years.map(String); dividendCharts[port].data.datasets = datasets; dividendCharts[port].update(); }
+        };
+
+        window.updateDividendUI = function(port) {
+            const view = document.getElementById(`${port}-div-view`)?.value;
+            const yearFilter = document.getElementById(`${port}-div-year`)?.value;
+            const compFilter = document.getElementById(`${port}-div-company`)?.value;
+            const container = document.getElementById(`${port}-dividend-container`);
+            const chartContainer = document.getElementById(`${port}-dividend-chart-container`);
+            const mainContainer = document.getElementById(`${port}-div-main-container`);
+            if (!container) return;
+
+            let html = '<table class="w-full text-sm text-left text-gray-600"><thead class="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200 sticky top-0">';
+            let total = 0;
+
+            if (view === 'history') {
+                chartContainer?.classList.remove('hidden'); chartContainer?.classList.add('w-full', 'md:w-1/2');
+                mainContainer?.classList.remove('flex-col'); mainContainer?.classList.add('flex-col', 'md:flex-row');
+                
+                html += '<tr><th class="px-4 py-3 w-16 text-center">Actions</th><th class="px-4 py-3">Date</th><th class="px-4 py-3">Entreprise</th><th class="px-4 py-3 text-right">Montant (€)</th></tr></thead><tbody>';
+                let filtered = allDividends.filter(d => d.port === port);
+                if (yearFilter !== 'ALL') filtered = filtered.filter(d => new Date(d.date).getFullYear().toString() === yearFilter);
+                if (compFilter !== 'ALL') filtered = filtered.filter(d => d.ticker === compFilter);
+                filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+                if (filtered.length === 0) { html += '<tr><td colspan="4" class="px-4 py-3 text-center italic text-gray-500">Aucun dividende pour cette sélection</td></tr>'; } 
+                else {
+                    filtered.forEach(d => {
+                        const db = stockDatabase[d.ticker]; const name = db?.name || d.ticker;
+                        let amt = d.amount; if(db && db.currency === 'USD') amt *= usdToEurRate; total += amt;
+                        html += `<tr class="border-b border-gray-50 hover:bg-gray-100"><td class="px-4 py-3 text-center flex gap-2 justify-center"><i class="ph-bold ph-pencil-simple cursor-pointer text-blue-500 hover:text-blue-700" onclick="window.editDividend('${d.id}','${port}')"></i><i class="ph-bold ph-trash cursor-pointer text-red-500 hover:text-red-700" onclick="window.deleteDividend('${d.id}','${port}')"></i></td><td class="px-4 py-3 font-semibold">${new Date(d.date).toLocaleDateString('fr-FR')}</td><td class="px-4 py-3 text-gray-600">${name}</td><td class="px-4 py-3 text-right font-medium text-green-600">+ ${eurFmt.format(amt)}</td></tr>`;
+                    });
+                }
+                html += `</tbody><tfoot class="bg-gray-50 font-bold border-t border-gray-200"><tr><td colspan="3" class="px-4 py-3 text-right">TOTAL PERÇU:</td><td class="px-4 py-3 text-right text-green-700">${eurFmt.format(total)}</td></tr></tfoot></table>`;
+                window.updateDividendChart(port);
+            } else {
+                chartContainer?.classList.add('hidden'); chartContainer?.classList.remove('w-full', 'md:w-1/2');
+                mainContainer?.classList.add('flex-col'); mainContainer?.classList.remove('md:flex-row');
+                
+                html += '<tr><th class="px-4 py-3">Entreprise</th><th class="px-4 py-3 text-right">Qté détenue</th><th class="px-4 py-3 text-center">Fréquence</th><th class="px-4 py-3 text-right">Div./action/an</th><th class="px-4 py-3 text-right">Rendement</th><th class="px-4 py-3 text-right">Prévision annuelle</th></tr></thead><tbody>';
+                let { positions } = getAggregatedPositions(port);
+                if (compFilter !== 'ALL') positions = positions.filter(p => p.ticker === compFilter);
+                let has = false, totalYield = 0, totalInvestedForYield = 0;
+                positions.forEach(p => {
+                    const db = stockDatabase[p.ticker]; const divData = db?.div;
+                    const annualDiv = divData?.annual || 0; const freq = divData?.freq || 0; const divYield = divData?.yield || 0;
+                    const expected = p.qty * annualDiv;
+                    has = true; total += expected; totalInvestedForYield += p.invested; totalYield += expected;
+                    const freqLabel = freq === 12 ? 'Mensuel' : freq === 4 ? 'Trimestriel' : freq === 2 ? 'Semestriel' : freq === 1 ? 'Annuel' : freq > 0 ? `${freq}x/an` : '–';
+                    const yieldDisplay = divYield > 0 ? (divYield * 100).toFixed(2) + ' %' : annualDiv > 0 && p.currentPrice > 0 ? ((annualDiv / p.currentPrice) * 100).toFixed(2) + ' %' : '–';
+                    const divDisplay = annualDiv > 0 ? eurFmt.format(annualDiv) : '<span class="text-gray-400 italic text-xs">Pas de dividende</span>';
+                    const expDisplay = expected > 0 ? `<span class="font-bold text-blue-600">${eurFmt.format(expected)}</span>` : '<span class="text-gray-400">–</span>';
+                    const statusBadge = annualDiv > 0 ? '<span class="w-2 h-2 rounded-full bg-green-500 inline-block" title="Verseur de dividendes"></span>' : '<span class="w-2 h-2 rounded-full bg-gray-300 inline-block" title="Pas de dividende"></span>';
+                    html += `<tr class="border-b border-gray-50 hover:bg-gray-100"><td class="px-4 py-3 font-semibold flex items-center gap-2">${statusBadge} ${p.name}</td><td class="px-4 py-3 text-right">${numFmt.format(p.qty)} actions</td><td class="px-4 py-3 text-center"><span class="text-xs px-2 py-0.5 rounded ${annualDiv > 0 ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-400'}">${freqLabel}</span></td><td class="px-4 py-3 text-right">${divDisplay}</td><td class="px-4 py-3 text-right text-emerald-600 font-medium">${yieldDisplay}</td><td class="px-4 py-3 text-right">${expDisplay}</td></tr>`;
+                });
+                if (!has) html += '<tr><td colspan="6" class="px-4 py-3 text-center italic text-gray-500">Aucune position dans ce portefeuille</td></tr>';
+                const portfolioYield = totalInvestedForYield > 0 ? ((totalYield / totalInvestedForYield) * 100).toFixed(2) : '0.00';
+                html += `</tbody><tfoot class="bg-gray-50 border-t-2 border-gray-200"><tr><td colspan="4" class="px-4 py-3 text-right font-bold text-gray-700">TOTAL PRÉVU sur 12 mois :</td><td class="px-4 py-3 text-right font-semibold text-emerald-600">${portfolioYield} %</td><td class="px-4 py-3 text-right font-bold text-blue-700 text-base">${eurFmt.format(total)}</td></tr><tr><td colspan="6" class="px-4 py-2 text-right text-[10px] text-gray-400 italic">Données converties en direct si USD · Mis à jour ttes les 60s</td></tr></tfoot></table>`;
+            }
+            container.innerHTML = html;
+        };
+
+        // ==========================================
+        // 7. APPELS API (YAHOO BATCH & GOOGLE FALLBACK)
+        // ==========================================
+        async function fetchBatchQuote(tickers) {
+            const symbols = tickers.join(',');
+            const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}&fields=marketCap,sharesOutstanding,trailingPE,forwardPE,epsTrailingTwelveMonths,regularMarketPrice,currency,shortName,longName,exchange,exchangeName`;
+            let data = await fetchDirect(url, 4000);
+            if (!data) { try { data = await fetchWithProxy(url, 6000); } catch(e){} }
+            if (!data?.quoteResponse?.result) return;
+            
+            data.quoteResponse.result.forEach(q => {
+                const db = stockDatabase[q.symbol]; if (!db) return;
+                db.currency = q.currency || 'EUR'; const rate = db.currency === 'USD' ? usdToEurRate : 1;
+                if (typeof q.regularMarketPrice === 'number' && q.regularMarketPrice > 0) db.currentPrice = q.regularMarketPrice * rate;
+                db.exchange = q.fullExchangeName || q.exchangeName || q.exchange || db.exchange || '-';
+                
+                // BPA extraction (converti en EUR si nécessaire)
+                let eps = q.epsTrailingTwelveMonths;
+                if (eps != null) {
+                    db.eps = eurFmt.format(eps * rate);
+                }
+            });
+        }
+
+        async function fetchChartHistory(ticker, range = '1y') {
+            // Serve from cache if fresh (< 5 min old)
+            const cached = chartCache[ticker]?.[range];
+            if (cached && (Date.now() - cached.ts) < CHART_CACHE_TTL) {
+                _applyChartData(ticker, range, cached.data);
+                return;
+            }
+
+            let interval = '1wk';
+            if (range === '1y' || range === '2y') interval = '1wk';
+            else interval = '1mo';
+
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${range}&interval=${interval}&events=dividends&includePrePost=false`;
+            let data = await fetchDirect(url, 4000); if (!data) { try { data = await fetchWithProxy(url, 6000); } catch(e){} }
+            if (!data?.chart?.result?.[0]) return;
+
+            const res  = data.chart.result[0]; const meta = res.meta || {};
+            const rate = (meta.currency === 'USD' || stockDatabase[ticker].currency === 'USD') ? usdToEurRate : 1;
+
+            if (typeof meta.regularMarketPrice === 'number' && meta.regularMarketPrice > 0) stockDatabase[ticker].currentPrice = meta.regularMarketPrice * rate;
+            if (!stockDatabase[ticker].exchange || stockDatabase[ticker].exchange === '-') stockDatabase[ticker].exchange = meta.fullExchangeName || meta.exchangeName || '-';
+
+            const closes = res.indicators?.quote?.[0]?.close || [];
+            const timestamps = res.timestamp || [];
+            
+            let valid = [];
+            let validTs = [];
+            
+            closes.forEach((c, i) => {
+                if (c != null && !isNaN(c)) {
+                    valid.push(+(c * rate).toFixed(2));
+                    validTs.push(timestamps[i]);
+                }
+            });
+
+            if (valid.length > 0) {
+                if (stockDatabase[ticker].currentPrice && range === '1y') valid[valid.length - 1] = +stockDatabase[ticker].currentPrice.toFixed(2);
+                stockDatabase[ticker].history = valid;
+                stockDatabase[ticker].timestamps = validTs;
+                
+                // Calcul Performance YTD
+                const currentYear = new Date().getFullYear();
+                let startOfYearPrice = null;
+                
+                // Recherche du dernier prix de l'année précédente
+                for (let i = validTs.length - 1; i >= 0; i--) {
+                    const date = new Date(validTs[i] * 1000);
+                    if (date.getFullYear() < currentYear) {
+                        startOfYearPrice = valid[i];
+                        break;
+                    }
+                }
+                
+                // Fallback: Si pas d'historique de l'année passée, on prend le plus ancien de l'année en cours
+                if (startOfYearPrice === null && valid.length > 0) {
+                    startOfYearPrice = valid[0]; 
+                }
+
+                if (startOfYearPrice && stockDatabase[ticker].currentPrice) {
+                    stockDatabase[ticker].ytd = (stockDatabase[ticker].currentPrice - startOfYearPrice) / startOfYearPrice;
+                }
+            }
+
+            // Dividendes
+            const divEvents = res.events?.dividends;
+            if (divEvents) {
+                const evs = Object.values(divEvents).filter(d => d.amount > 0).sort((a, b) => a.date - b.date);
+                if (evs.length > 0) {
+                    const cutoffTs = Math.floor(Date.now() / 1000) - 365 * 24 * 3600;
+                    const lastYear = evs.filter(d => d.date >= cutoffTs);
+                    let annualDivOrig = 0, freq = 4;
+                    if (evs.length >= 2) { const avgDays = (evs[evs.length-1].date - evs[0].date) / (evs.length - 1) / 86400; if (avgDays <= 40) freq = 12; else if (avgDays <= 100) freq = 4; else if (avgDays <= 200) freq = 2; else freq = 1; }
+                    if (lastYear.length > 0) annualDivOrig = lastYear.reduce((s, d) => s + d.amount, 0); else annualDivOrig = evs[evs.length - 1].amount * freq;
+                    
+                    const annualDivEur = annualDivOrig * rate;
+                    const priceEur = stockDatabase[ticker].currentPrice || 0;
+                    stockDatabase[ticker].div = { annual: +annualDivEur.toFixed(4), freq, yield: (priceEur > 0 && annualDivEur > 0) ? annualDivEur / priceEur : 0 };
+                }
+            }
+
+            // Persist to cache
+            if (!chartCache[ticker]) chartCache[ticker] = {};
+            chartCache[ticker][range] = {
+                history: stockDatabase[ticker].history,
+                timestamps: stockDatabase[ticker].timestamps,
+                ytd: stockDatabase[ticker].ytd,
+                div: stockDatabase[ticker].div,
+                currentPrice: stockDatabase[ticker].currentPrice,
+                exchange: stockDatabase[ticker].exchange,
+                ts: Date.now()
+            };
+        }
+
+        function _applyChartData(ticker, range, cached) {
+            const db = stockDatabase[ticker]; if (!db) return;
+            db.history = cached.history;
+            db.timestamps = cached.timestamps;
+            if (cached.ytd !== undefined) db.ytd = cached.ytd;
+            if (cached.div) db.div = cached.div;
+            if (cached.currentPrice && range === '1y') db.currentPrice = cached.currentPrice;
+            if (cached.exchange && (!db.exchange || db.exchange === '-')) db.exchange = cached.exchange;
+        }
+
+        // --- NOUVEAU: Fallback asynchrone Google Finance Ultra-Robuste ---
+        async function fetchMetricsGoogleFallback(ticker) {
+            const db = stockDatabase[ticker];
+            if (!db) return;
+            
+            try {
+                // Conversion intelligente du Ticker Yahoo -> Google
+                const parts = ticker.split('.');
+                const exMap = { 'PA':'EPA', 'AS':'AMS', 'MI':'BIT', 'MC':'BME', 'DE':'ETR', 'L':'LON', 'NX':'Euronext', 'BR':'EBR', 'LS':'ELI', 'ST':'STO' };
+                let gTicker = parts.length > 1 ? `${parts[0]}:${exMap[parts[1]] || parts[1]}` : `${parts[0]}:NASDAQ`;
+                if (parts.length === 1 && ticker.length <= 4) gTicker = `${ticker}:NYSE`; // Fallback US
+                
+                const targetUrl = encodeURIComponent(`https://www.google.com/finance/quote/${gTicker}?hl=fr`);
+                let html = '';
+                
+                // Fonction de Fetch avec Timeout pour ne jamais bloquer
+                const fetchWithTimeout = async (url) => {
+                    const ctrl = new AbortController();
+                    const tid = setTimeout(() => ctrl.abort(), 3500);
+                    try {
+                        const r = await fetch(url, { signal: ctrl.signal });
+                        clearTimeout(tid);
+                        return r;
+                    } catch(e) {
+                        clearTimeout(tid);
+                        throw e;
+                    }
+                };
+
+                // Essai 1 via proxy texte brut
+                try {
+                    const r = await fetchWithTimeout(`https://corsproxy.io/?${targetUrl}`);
+                    if (r.ok) html = await r.text();
+                } catch(e) {}
+                
+                // Essai 2 via proxy JSON (allorigins)
+                if (!html || html.length < 1000) {
+                    try {
+                        const r2 = await fetchWithTimeout(`https://api.allorigins.win/get?url=${targetUrl}`);
+                        if (r2.ok) {
+                            const json = await r2.json();
+                            html = json.contents;
+                        }
+                    } catch(e) {}
+                }
+                
+                if (!html) return;
+
+                // Fallback EPS via Google si non trouvé
+                if (db.eps === '-' || !db.eps) {
+                    const epsMatch = html.match(/(?:Bénéfice par action|EPS)<\/div>[\s\S]*?<div class="[^"]*">([^<]+)<\/div>/i);
+                    if (epsMatch && !epsMatch[1].includes('<')) {
+                        const val = epsMatch[1].replace(/&nbsp;/g, ' ').trim();
+                        if (val && val !== '-') db.eps = val;
+                    }
+                }
+                
+            } catch(e) {
+                console.warn("Erreur Google Finance Fallback", e);
+            }
+        }
+
+        function refreshAnalysisPanel() { 
+            ['pea', 'cto'].forEach(port => { 
+                const sel = document.getElementById(`${port}-stock-select`); 
+                if (sel?.value) window.updateStockData(port, sel.value); 
+            }); 
+        }
+
+        // Moteur de rendu progressif pour des performances optimales
+        async function fetchLivePrices() {
+            await fetchExchangeRate();
+            const tickers = Object.keys(stockDatabase); if (!tickers.length) return;
+            
+            // Lancement PARALLELE : Base rapide (Yahoo) + Sécurité fiable (Google Finance)
+            const quotePromise = fetchBatchQuote(tickers); 
+            const googlePromises = Promise.allSettled(tickers.map(t => fetchMetricsGoogleFallback(t)));
+            
+            // On attend au moins les prix pour l'affichage initial immédiat
+            await quotePromise;
+            window.renderDashboard(); 
+            refreshAnalysisPanel();
+            
+            // Dès que Google a répondu (1 à 2 secondes plus tard), l'UI se met à jour
+            googlePromises.then(() => {
+                refreshAnalysisPanel(); 
+            });
+            
+            // Chargement des historiques uniquement pour le ticker affiché dans chaque onglet
+            const historyFetches = [];
+            ['pea', 'cto'].forEach(port => {
+                const sel = document.getElementById(`${port}-stock-select`);
+                const ticker = sel?.value || tickers.find(t => allTransactions.find(tx => tx.ticker === t && tx.port === port));
+                if (ticker) historyFetches.push(fetchChartHistory(ticker, currentChartRange[port] || '1y'));
+            });
+            await Promise.allSettled(historyFetches);
+
+            // Mise à jour finale pour afficher les lignes des graphiques
+            window.renderDashboard();
+            refreshAnalysisPanel();
+        }
+
+        function updateDropdowns() {
+            ['pea', 'cto'].forEach(port => {
+                const { positions } = getAggregatedPositions(port);
+                const analysisSelect = document.getElementById(`${port}-stock-select`);
+                if (analysisSelect) {
+                    const prev = analysisSelect.value; analysisSelect.innerHTML = '';
+                    positions.forEach(p => analysisSelect.insertAdjacentHTML('beforeend', `<option value="${p.ticker}">${p.name} (${p.ticker})</option>`));
+                    if (positions.some(p => p.ticker === prev)) analysisSelect.value = prev;
+                }
+                const yearSelect = document.getElementById(`${port}-div-year`), compSelect = document.getElementById(`${port}-div-company`);
+                if (yearSelect && compSelect) {
+                    const yVal = yearSelect.value || 'ALL', cVal = compSelect.value || 'ALL';
+                    const years = new Set(allDividends.filter(d => d.port === port).map(d => new Date(d.date).getFullYear()));
+                    [new Date().getFullYear(), new Date().getFullYear() + 1].forEach(y => years.add(y));
+                    yearSelect.innerHTML = '<option value="ALL">Toutes les années</option>'; Array.from(years).sort((a, b) => b - a).forEach(y => yearSelect.insertAdjacentHTML('beforeend', `<option value="${y}">${y}</option>`));
+                    compSelect.innerHTML = '<option value="ALL">Toutes les entreprises</option>'; positions.forEach(p => compSelect.insertAdjacentHTML('beforeend', `<option value="${p.ticker}">${p.name}</option>`));
+                    if ([...yearSelect.options].some(o => o.value === yVal)) yearSelect.value = yVal;
+                    if ([...compSelect.options].some(o => o.value === cVal)) compSelect.value = cVal;
+                }
+            });
+        }
+
+        // ==========================================
+        // 8. GESTION BUDGETAIRE
+        // ==========================================
+        window.updateCategoryOptions = function(selectEl) {
+            const catSelect = document.getElementById('budget-cat-select'); if (!catSelect) return;
+            catSelect.innerHTML = ''; (budgetTaxonomy[selectEl.value] || []).forEach(cat => catSelect.insertAdjacentHTML('beforeend', `<option value="${cat}">${cat}</option>`));
+        };
+
+        window.handleBudgetImport = async function(e) {
+            const file = e.target.files[0]; if (!file) return; const reader = new FileReader();
+            reader.onload = async function(evt) {
+                try {
+                    const wb = XLSX.read(new Uint8Array(evt.target.result), { type: 'array' });
+                    const ws = wb.Sheets[wb.SheetNames[0]]; 
+                    const json = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                    if (json.length < 2) { window.showToast("Le fichier est vide.", "error"); return; }
+                    
+                    // Détection Intelligente des colonnes
+                    const headers = json[0].map(h => String(h || '').toLowerCase().trim());
+                    
+                    const idxDate = headers.findIndex(h => h.includes('date') || h.includes('valeur'));
+                    const idxAmount = headers.findIndex(h => h === 'montant' || h === 'valeur' || h.includes('euros') || h === 'somme' || h.includes('amount'));
+                    const idxDebit = headers.findIndex(h => h.includes('débit') || h.includes('debit') || h.includes('retrait'));
+                    const idxCredit = headers.findIndex(h => h.includes('crédit') || h.includes('credit') || h.includes('dépôt') || h.includes('depot'));
+                    const idxDetails = headers.findIndex(h => h.includes('libellé') || h.includes('libelle') || h.includes('description') || h.includes('détail') || h.includes('nom') || h.includes('opération') || h.includes('tiers'));
+                    const idxCategory = headers.findIndex(h => h.includes('catégorie') || h.includes('categorie') || h.includes('type'));
+                    const idxBank = headers.findIndex(h => h.includes('banque') || h.includes('compte'));
+
+                    let count = 0;
+                    
+                    for (let i = 1; i < json.length; i++) {
+                        const row = json[i];
+                        if (!row || row.length === 0) continue;
+                        
+                        let dateStr = idxDate >= 0 ? row[idxDate] : row[0];
+                        if (!dateStr) continue;
+
+                        let amount = 0;
+                        if (idxAmount >= 0) {
+                            amount = typeof row[idxAmount] === 'number' ? row[idxAmount] : parseFloat(String(row[idxAmount] || '').replace(/ /g, '').replace(',', '.'));
+                        } else if (idxDebit >= 0 || idxCredit >= 0) {
+                            let debit = idxDebit >= 0 ? Math.abs(parseFloat(String(row[idxDebit] || '0').replace(/ /g, '').replace(',', '.'))) * -1 : 0;
+                            let credit = idxCredit >= 0 ? Math.abs(parseFloat(String(row[idxCredit] || '0').replace(/ /g, '').replace(',', '.'))) : 0;
+                            amount = (credit || 0) + (debit || 0);
+                        } else {
+                            amount = parseFloat(String(row[3] || '').replace(/ /g, '').replace(',', '.'));
+                        }
+
+                        if (isNaN(amount) || amount === 0) continue;
+
+                        let detailStr = idxDetails >= 0 ? row[idxDetails] : (row[4] || row[2] || '');
+                        let catStr = idxCategory >= 0 ? row[idxCategory] : 'Divers';
+                        
+                        let bankFallback = 'Banque Populaire';
+                        if (file.name.toLowerCase().includes('bourso')) bankFallback = 'Bourso Bank';
+                        if (file.name.toLowerCase().includes('trade')) bankFallback = 'Trade Republic';
+                        let bankStr = idxBank >= 0 ? row[idxBank] : bankFallback;
+
+                        let parsed;
+                        if (typeof dateStr === 'number') {
+                            parsed = new Date(Math.round((dateStr - 25569) * 86400 * 1000));
+                        } else {
+                            const p = String(dateStr).split('/');
+                            parsed = p.length === 3 ? new Date(`${p[2]}-${p[1]}-${p[0]}`) : new Date(dateStr);
+                        }
+                        if (isNaN(parsed.getTime())) continue;
+
+                        let typeStr = amount > 0 ? 'Revenus' : 'Dépenses variables';
+                        let dLow = String(detailStr).toLowerCase();
+                        if (amount < 0) {
+                            if(dLow.includes('loyer') || dLow.includes('prélèvement') || dLow.includes('abonnement') || dLow.includes('edf') || dLow.includes('assurance') || dLow.includes('mutuelle') || dLow.includes('forfait') || dLow.includes('free') || dLow.includes('orange') || dLow.includes('bouygues')) {
+                                typeStr = 'Dépenses fixes';
+                            }
+                        }
+
+                        allBudgetMovements.push({ 
+                            id: Date.now() + Math.random(), 
+                            date: parsed.toISOString().split('T')[0], 
+                            type: typeStr, 
+                            category: String(catStr), 
+                            amount: Math.abs(amount), 
+                            details: String(detailStr || ''), 
+                            bank: String(bankStr) 
+                        });
+                        count++;
+                    }
+                    if (count > 0) { window.showToast(`${count} transactions importées !`); window.renderDashboard(); await window.saveDataToFirebase(); } else window.showToast('Aucune transaction lue.', 'error');
+                } catch (err) { window.showToast('Erreur de lecture.', 'error'); }
+                e.target.value = '';
+            }; reader.readAsArrayBuffer(file);
+        };
+
+        window.switchBudgetView = function(view) {
+            const isDash = view === 'dashboard';
+            document.getElementById('budget-view-dashboard').classList.toggle('hidden', !isDash); document.getElementById('budget-view-dashboard').classList.toggle('block', isDash);
+            document.getElementById('budget-view-history').classList.toggle('hidden', isDash); document.getElementById('budget-view-history').classList.toggle('block', !isDash);
+            document.getElementById('btn-budget-dash').classList.toggle('budget-tab-active', isDash); document.getElementById('btn-budget-hist').classList.toggle('budget-tab-active', !isDash);
+            if (!isDash) renderBudgetHistory();
+        };
+
+        window.addBudgetMovement = async function(e) {
+            e.preventDefault(); const form = e.target; const mId = editingBudgetTxId || (Date.now() + Math.random());
+            const movement = {
+                id: mId, date: form.querySelector('input[name="date"]').value, type: form.querySelector('select[name="type"]').value,
+                category: form.querySelector('select[name="category"]')?.value || form.querySelector('input[name="category"]')?.value || '',
+                amount: parseFloat(form.querySelector('input[name="amount"]').value.replace(',', '.')), details: form.querySelector('input[name="details"]').value, bank: form.querySelector('select[name="bank"]').value
+            };
+            if (editingBudgetTxId) { const idx = allBudgetMovements.findIndex(m => m.id === editingBudgetTxId); if (idx > -1) allBudgetMovements[idx] = movement; window.showToast('Mouvement modifié !'); } 
+            else { allBudgetMovements.push(movement); window.showToast('Mouvement enregistré !'); }
+            window.closeBudgetModal(); window.renderDashboard(); if (document.getElementById('budget-view-history').classList.contains('block')) renderBudgetHistory(); await window.saveDataToFirebase();
+        };
+
+        window.editBudgetMovement = function(id) {
+            const m = allBudgetMovements.find(x => x.id === id); if (!m) return;
+            editingBudgetTxId = id; window.openBudgetModal();
+            const form = document.getElementById('budget-tx-form');
+            form.querySelector('input[name="date"]').value = m.date;
+            const ts = form.querySelector('select[name="type"]'); ts.value = m.type; window.updateCategoryOptions(ts);
+            form.querySelector('select[name="category"]').value = m.category;
+            form.querySelector('input[name="amount"]').value = m.amount;
+            form.querySelector('input[name="details"]').value = m.details;
+            form.querySelector('select[name="bank"]').value = m.bank;
+            document.getElementById('budget-modal-title').innerHTML = '<i class="ph-fill ph-pencil-simple text-blue-600 text-2xl"></i> Modifier le mouvement';
+            document.getElementById('budget-btn-submit').innerHTML = `<i class="ph-bold ph-check"></i> Modifier`;
+        };
+
+        // NOUVEAU: Fonction de suppression depuis l'historique du budget
+        window.deleteBudgetMovement = async function(id) {
+            if (confirm("Voulez-vous vraiment supprimer ce mouvement ?")) {
+                allBudgetMovements = allBudgetMovements.filter(m => m.id !== id);
+                window.showToast("Mouvement supprimé.");
+                window.renderDashboard();
+                if (document.getElementById('budget-view-history').classList.contains('block')) renderBudgetHistory();
+                await window.saveDataToFirebase();
+            }
+        };
+
+        function renderBudgetHistory() {
+            const container = document.getElementById('budget-history-container'); container.innerHTML = '';
+            if (allBudgetMovements.length === 0) { container.innerHTML = '<p class="text-center text-gray-500 italic py-4">Aucun mouvement enregistré.</p>'; return; }
+            const monthNames = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+            const grouped = {};
+            allBudgetMovements.forEach(m => {
+                const d = new Date(m.date); const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2,'0')}`;
+                if (!grouped[key]) grouped[key] = { label: `${monthNames[d.getMonth()]} ${d.getFullYear()}`, movements: [] };
+                grouped[key].movements.push(m);
+            });
+            Object.keys(grouped).sort((a,b)=>b.localeCompare(a)).forEach(key => {
+                const g = grouped[key]; g.movements.sort((a,b)=>new Date(b.date)-new Date(a.date));
+                const rows = g.movements.map(m => {
+                    const c = typeColors[m.type] || 'gray';
+                    // AJOUT: Icône corbeille (supprimer) à côté du stylo
+                    return `<tr class="border-b border-gray-50 hover:bg-gray-100"><td class="px-3 py-2 text-center flex gap-2 justify-center"><i class="ph-bold ph-pencil-simple cursor-pointer text-blue-500 hover:text-blue-700" title="Modifier" onclick="window.editBudgetMovement(${m.id})"></i><i class="ph-bold ph-trash cursor-pointer text-red-500 hover:text-red-700" title="Supprimer" onclick="window.deleteBudgetMovement(${m.id})"></i></td><td class="px-3 py-2 text-gray-500">${new Date(m.date).toLocaleDateString('fr-FR')}</td><td class="px-3 py-2"><span class="px-2 py-1 rounded text-[10px] uppercase tracking-wider font-bold bg-${c}-100 text-${c}-700">${m.type}</span></td><td class="px-3 py-2 font-medium">${m.category}</td><td class="px-3 py-2 text-gray-500 text-xs">${m.details}</td><td class="px-3 py-2 text-gray-500 text-xs">${m.bank}</td><td class="px-3 py-2 text-right font-bold ${m.type==='Revenus'?'text-green-600':'text-gray-800'}">${m.type==='Revenus'?'+':'-'}${eurFmt.format(m.amount)}</td></tr>`;
+                }).join('');
+                container.insertAdjacentHTML('beforeend', `<div class="border border-gray-200 rounded-lg overflow-hidden"><div class="bg-gray-100 px-4 py-2 font-bold text-gray-700 uppercase tracking-wider text-xs">${g.label}</div><div class="overflow-x-auto table-container"><table class="w-full text-sm text-left text-gray-600 min-w-[800px]"><thead class="bg-white border-b border-gray-200 text-xs"><tr><th class="px-3 py-2 w-16 text-center">Actions</th><th class="px-3 py-2">Date</th><th class="px-3 py-2">Type</th><th class="px-3 py-2">Catégorie</th><th class="px-3 py-2">Détails</th><th class="px-3 py-2">Compte</th><th class="px-3 py-2 text-right">Montant</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+            });
+        }
+
+        window.updateBudgetCompareChart = function() {
+            const m1 = document.getElementById('budget-cmp-month-1')?.value, m2 = document.getElementById('budget-cmp-month-2')?.value;
+            if (!m1 || !m2 || !budgetCharts.bar) return;
+            const mn = ["Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
+            const calc = (val) => {
+                const [m, y] = val.split('_').map(Number); let rev=0,fix=0,v=0;
+                allBudgetMovements.forEach(tx => { const d=new Date(tx.date); if(d.getMonth()===m&&d.getFullYear()===y){if(tx.type==='Revenus')rev+=tx.amount;if(tx.type==='Dépenses fixes')fix+=tx.amount;if(tx.type==='Dépenses variables')v+=tx.amount;} });
+                return { label:`${mn[m]} ${y}`, data:[rev,fix,v] };
+            };
+            const d1=calc(m1), d2=calc(m2);
+            budgetCharts.bar.data.labels=['Revenus','Dép. fixes','Dép. variables'];
+            budgetCharts.bar.data.datasets=[{label:d1.label,data:d1.data,backgroundColor:'#BFDBFE'},{label:d2.label,data:d2.data,backgroundColor:'#E5E7EB'}]; // PASTEL BLUE & GRAY
+            budgetCharts.bar.options.plugins.tooltip.callbacks.label=c=>' '+c.dataset.label+' : '+eurFmt.format(c.raw); budgetCharts.bar.update();
+        };
+
+        window.renderBudget = function() {
+            allBudgetMovements.forEach(m => { if(m.type==='revenu') m.type='Revenus'; if(m.type==='depense_fixe') m.type='Dépenses fixes'; if(m.type==='depense_variable') m.type='Dépenses variables'; });
+            const mf=document.getElementById('budget-month-filter'), cf=document.getElementById('budget-cmp-filter');
+            const prevM=mf.value, prevC=cf?.value||'';
+            const mn=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+            const avail=new Set(allBudgetMovements.map(m=>{const d=new Date(m.date);return`${d.getMonth()}_${d.getFullYear()}`}));
+            const today=new Date(); avail.add(`${today.getMonth()}_${today.getFullYear()}`);
+            const sorted=Array.from(avail).sort((a,b)=>{const[mA,yA]=a.split('_').map(Number);const[mB,yB]=b.split('_').map(Number);return yA!==yB?yB-yA:mB-mA;});
+            mf.innerHTML=''; if(cf) cf.innerHTML='';
+            sorted.forEach(v=>{const[m,y]=v.split('_').map(Number);const o=`<option value="${v}">${mn[m]} ${y}</option>`;mf.insertAdjacentHTML('beforeend',o);if(cf)cf.insertAdjacentHTML('beforeend',o);});
+            if([...mf.options].some(o=>o.value===prevM)) mf.value=prevM; else if(sorted.length>0) mf.value=sorted[0];
+            if(cf){if([...cf.options].some(o=>o.value===prevC)) cf.value=prevC; else if(sorted.length>1) cf.value=sorted[1]; else if(sorted.length>0) cf.value=sorted[0];}
+            const c1=document.getElementById('budget-cmp-month-1'), c2=document.getElementById('budget-cmp-month-2');
+            const v1=c1.value, v2=c2.value; c1.innerHTML=''; c2.innerHTML='';
+            sorted.forEach(v=>{const[m,y]=v.split('_').map(Number);const o=`<option value="${v}">${mn[m].substring(0,3)} ${y}</option>`;c1.insertAdjacentHTML('beforeend',o);c2.insertAdjacentHTML('beforeend',o);});
+            if([...c1.options].some(o=>o.value===v1))c1.value=v1; else if(sorted.length>0)c1.value=sorted[0];
+            if([...c2.options].some(o=>o.value===v2))c2.value=v2; else if(sorted.length>1)c2.value=sorted[1]; else if(sorted.length>0)c2.value=sorted[0];
+            window.updateBudgetCompareChart();
+
+            const adv=mf.value; if(!adv) return;
+            const[selM,selY]=adv.split('_').map(Number);
+            let cmpM=selM-1,cmpY=selY; if(cmpM<0){cmpM=11;cmpY--;}
+            if(cf?.value){const[cM,cY]=cf.value.split('_').map(Number);cmpM=cM;cmpY=cY;}
+
+            let totals={current:{"Revenus":0,"Dépenses fixes":0,"Dépenses variables":0,"Économies":0,"Dettes":0},cmp:{"Revenus":0,"Dépenses fixes":0,"Dépenses variables":0,"Économies":0,"Dettes":0}};
+            let banks={}, cAgg={};
+            Object.keys(budgetTaxonomy).forEach(t=>{cAgg[t]={};budgetTaxonomy[t].forEach(c=>{cAgg[t][c]={current:0,prev:0};});});
+            allBudgetMovements.forEach(m=>{
+                const d=new Date(m.date); const isCurr=d.getMonth()===selM&&d.getFullYear()===selY, isPrev=d.getMonth()===cmpM&&d.getFullYear()===cmpY;
+                if(!isCurr&&!isPrev) return;
+                if(!cAgg[m.type]) cAgg[m.type]={}; if(!cAgg[m.type][m.category]) cAgg[m.type][m.category]={current:0,prev:0};
+                if(isCurr){cAgg[m.type][m.category].current+=m.amount;if(totals.current[m.type]!==undefined)totals.current[m.type]+=m.amount;if(m.type!=='Revenus')banks[m.bank]=(banks[m.bank]||0)+m.amount;}
+                else if(isPrev){cAgg[m.type][m.category].prev+=m.amount;if(totals.cmp[m.type]!==undefined)totals.cmp[m.type]+=m.amount;}
+            });
+
+            const cont=document.getElementById('budget-tables-container'); cont.innerHTML='';
+            const rc=totals.current["Revenus"]||0,fc=totals.current["Dépenses fixes"]||0,vc=totals.current["Dépenses variables"]||0,eco=totals.current["Économies"]||0,det=totals.current["Dettes"]||0;
+            const outC=fc+vc+eco+det, soldeC=rc-outC;
+            const rp=totals.cmp["Revenus"]||0,fp=totals.cmp["Dépenses fixes"]||0,vp=totals.cmp["Dépenses variables"]||0,ecop=totals.cmp["Économies"]||0,detp=totals.cmp["Dettes"]||0;
+            const outP=fp+vp+ecop+detp, soldeP=rp-outP;
+
+            cont.insertAdjacentHTML('beforeend',`<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="bg-gray-800 text-white text-center py-2 font-bold text-sm uppercase tracking-widest">RÉSUMÉ BUDGET</div><div class="p-0 table-container overflow-x-auto"><table class="w-full text-xs text-left"><thead class="bg-gray-50 text-gray-600 border-b border-gray-200"><tr><th class="px-3 py-2 w-1/2">TYPE</th><th class="px-3 py-2 text-right">MOIS SÉLECTIONNÉ</th><th class="px-3 py-2 text-right">MOIS COMPARAISON</th></tr></thead><tbody class="text-gray-700"><tr class="border-b"><td class="px-3 py-2 font-semibold">Total Revenus</td><td class="px-3 py-2 text-right font-medium text-blue-600">${eurFmt.format(rc)}</td><td class="px-3 py-2 text-right text-gray-400">${eurFmt.format(rp)}</td></tr><tr class="border-b"><td class="px-3 py-2 font-semibold">Total Dépenses fixes</td><td class="px-3 py-2 text-right font-medium text-red-500">${eurFmt.format(fc)}</td><td class="px-3 py-2 text-right text-gray-400">${eurFmt.format(fp)}</td></tr><tr class="border-b"><td class="px-3 py-2 font-semibold">Total Dépenses variables</td><td class="px-3 py-2 text-right font-medium text-orange-500">${eurFmt.format(vc)}</td><td class="px-3 py-2 text-right text-gray-400">${eurFmt.format(vp)}</td></tr><tr class="bg-gray-50 font-bold border-t-2 border-gray-200"><td class="px-3 py-2 text-gray-800">BILAN CASHFLOW</td><td class="px-3 py-2 text-right ${soldeC>=0?'text-green-600':'text-red-600'}">${eurFmt.format(soldeC)}</td><td class="px-3 py-2 text-right ${soldeP>=0?'text-green-600':'text-red-600'}">${eurFmt.format(soldeP)}</td></tr></tbody></table></div></div>`);
+
+            Object.keys(budgetTaxonomy).forEach(type=>{
+                let rows='',tC=0,tP=0;
+                Object.keys(cAgg[type]||{}).forEach(cat=>{
+                    const v=cAgg[type][cat];
+                    if(v.current>0||v.prev>0){tC+=v.current;tP+=v.prev;rows+=`<tr class="border-b hover:bg-gray-50"><td class="px-3 py-2 text-gray-700 w-1/2">${cat}</td><td class="px-3 py-2 text-right font-medium">${eurFmt.format(v.current)}</td><td class="px-3 py-2 text-right text-gray-400 text-xs">${eurFmt.format(v.prev)}</td></tr>`;}
+                });
+                if(!rows) return;
+                rows+=`<tr class="bg-gray-50 font-bold border-t-2 border-gray-200"><td class="px-3 py-2">TOTAL</td><td class="px-3 py-2 text-right text-${typeColors[type]}-700">${eurFmt.format(tC)}</td><td class="px-3 py-2 text-right text-gray-500 text-xs">${eurFmt.format(tP)}</td></tr>`;
+                cont.insertAdjacentHTML('beforeend',`<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"><div class="bg-${typeColors[type]}-600 text-white text-center py-2 font-bold text-sm uppercase tracking-widest">${type}</div><div class="p-0 table-container overflow-x-auto"><table class="w-full text-xs text-left"><thead class="bg-${typeColors[type]}-50 text-gray-600 border-b border-gray-200"><tr><th class="px-3 py-2 w-1/2">CATÉGORIE</th><th class="px-3 py-2 text-right">MOIS SÉLECTIONNÉ</th><th class="px-3 py-2 text-right">MOIS COMPARAISON</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+            });
+
+            document.getElementById('budget-kpi-solde').innerText=eurFmt.format(soldeC); document.getElementById('budget-kpi-solde').className=`text-sm md:text-base font-bold w-full truncate text-center ${soldeC>=0?'text-green-600':'text-red-600'}`;
+            if(budgetCharts.solde){
+                budgetCharts.solde.data.labels = ['Solde positif', 'Dépenses'];
+                budgetCharts.solde.data.datasets[0].data=[Math.max(0,soldeC),Math.max(0,outC)];
+                budgetCharts.solde.data.datasets[0].backgroundColor=['#A7F3D0','#F3F4F6']; // PASTEL GREEN
+                budgetCharts.solde.update();
+            }
+            if(budgetCharts.repart){
+                budgetCharts.repart.data.labels=["Dépenses fixes","Dépenses variables"];
+                budgetCharts.repart.data.datasets[0].data=[fc,vc];
+                budgetCharts.repart.data.datasets[0].backgroundColor=['#FCA5A5','#FCD34D']; // PASTEL RED & ORANGE
+                budgetCharts.repart.update();
+                document.getElementById('legend-repart').innerHTML=`${fc>0?'<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-300"></span> Fixes</span>':''}${vc>0?'<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-orange-300"></span> Variables</span>':''}`;
+            }
+            if(budgetCharts.cb){
+                const bq=banks['Banque Populaire']||0,tr=banks['Trade Republic']||0,bo=banks['Bourso Bank']||0;
+                budgetCharts.cb.data.labels=["Banque Populaire","Trade Republic","Bourso Bank"];
+                budgetCharts.cb.data.datasets[0].data=[bq,tr,bo];
+                budgetCharts.cb.data.datasets[0].backgroundColor=['#93C5FD','#E5E7EB','#C4B5FD']; // PASTEL BLUE, GRAY, PURPLE
+                budgetCharts.cb.update();
+                document.getElementById('legend-cb').innerHTML=`${bq>0?'<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-300"></span> Bq Pop.</span>':''}${tr>0?'<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-300"></span> Trade Rep.</span>':''}${bo>0?'<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-300"></span> Bourso</span>':''}`;
+            }
+
+            let eL=[],eR=[],eF=[],eV=[];
+            for(let i=5;i>=0;i--){const d=new Date(selY,selM-i,1);eL.push(`${mn[d.getMonth()].substring(0,3)} ${d.getFullYear()}`);let r=0,f=0,v=0;allBudgetMovements.forEach(m=>{const md=new Date(m.date);if(md.getMonth()===d.getMonth()&&md.getFullYear()===d.getFullYear()){if(m.type==='Revenus')r+=m.amount;if(m.type==='Dépenses fixes')f+=m.amount;if(m.type==='Dépenses variables')v+=m.amount;}});eR.push(r);eF.push(f);eV.push(v);}
+            if(budgetCharts.evol){
+                budgetCharts.evol.data.labels=eL;
+                budgetCharts.evol.data.datasets=[
+                    {label:'Revenus',data:eR,borderColor:'#6EE7B7',backgroundColor:'#6EE7B7',tension:0.3},
+                    {label:'Dép. fixes',data:eF,borderColor:'#FCA5A5',backgroundColor:'#FCA5A5',tension:0.3},
+                    {label:'Dép. variables',data:eV,borderColor:'#FCD34D',backgroundColor:'#FCD34D',tension:0.3}
+                ];
+                budgetCharts.evol.update();
+            }
+        }
+
+        window.renderDashboard = function() {
+            renderBourseRecap();
+            renderPortfolio('pea');
+            renderPortfolio('cto');
+            updateDropdowns();
+            renderBudget();
+            ['pea', 'cto'].forEach(p => window.updateDividendUI(p));
+            if (document.getElementById('budget-view-history')?.classList.contains('block')) renderBudgetHistory();
+        };
+
+        // ==========================================
+        // 10. AUTHENTIFICATION & FIREBASE
+        // ==========================================
+        window.handleLogin = async function(e) {
+            if (e) e.preventDefault();
+            const user = document.getElementById('login-user').value.trim(); const pass = document.getElementById('login-pass').value;
+            if (user === 'axel.peyroche' && pass === 'Ysolubuk70') { performLogin(user, { pea: true, cto: true, budget: true }); return; }
+            const uData = authUsersDict[user];
+            if (uData) {
+                if (typeof uData === 'string' && uData === pass) performLogin(user, { pea: true, cto: true, budget: true });
+                else if (typeof uData === 'object' && uData.pass === pass) performLogin(user, uData.perms);
+                else window.showToast('Identifiants incorrects', 'error');
+            } else window.showToast('Identifiants incorrects', 'error');
+        };
+
+        function performLogin(username, perms = { pea: true, cto: true, budget: true }) {
+            currentUsername = username; localStorage.setItem('fin_user', username);
+            document.getElementById('login-overlay').classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('app-container').classList.remove('hidden'); document.getElementById('app-container').classList.add('flex');
+                document.getElementById('user-display-name').innerText = username;
+                document.getElementById('user-avatar-initials').innerText = username.substring(0, 2).toUpperCase();
+                const isAdmin = username === 'axel.peyroche';
+                document.getElementById('nav-group-bourse').classList.toggle('hidden', !perms.pea && !perms.cto);
+                document.getElementById('btn-pea').classList.toggle('hidden', !perms.pea); document.getElementById('btn-cto').classList.toggle('hidden', !perms.cto);
+                document.getElementById('nav-group-budget').classList.toggle('hidden', !perms.budget); document.getElementById('btn-budget').classList.toggle('hidden', !perms.budget);
+                document.getElementById('btn-admin').classList.toggle('hidden', !isAdmin); document.getElementById('mobile-admin-opt').classList.toggle('hidden', !isAdmin);
+                document.getElementById('opt-recap').classList.toggle('hidden', !perms.pea && !perms.cto);
+                document.getElementById('opt-pea').classList.toggle('hidden', !perms.pea); document.getElementById('opt-cto').classList.toggle('hidden', !perms.cto);
+                document.getElementById('opt-budget').classList.toggle('hidden', !perms.budget);
+
+                if (perms.pea) window.switchTab('bourse-recap'); else if (perms.budget) window.switchTab('budget');
+                window.updateCategoryOptions(document.getElementById('budget-type-select'));
+                
+                loadLocalData(); listenToUserData(); fetchLivePrices();
+                if (['pea','cto','bourse-recap'].includes(currentTab)) liveUpdateInterval = setInterval(fetchLivePrices, 60000);
+            }, 300);
+        }
+
+        window.logout = function() { localStorage.removeItem('fin_user'); window.location.reload(); };
+
+        function loadLocalData() {
+            if (!currentUsername) return;
+            const d = localStorage.getItem(`fin_data_${currentUsername}`);
+            if (d) {
+                try {
+                    const parsed = JSON.parse(d);
+                    if (parsed.transactions) allTransactions = typeof parsed.transactions === 'string' ? JSON.parse(parsed.transactions) : parsed.transactions;
+                    if (parsed.dividends) allDividends = typeof parsed.dividends === 'string' ? JSON.parse(parsed.dividends) : parsed.dividends;
+                    if (parsed.budget) allBudgetMovements = typeof parsed.budget === 'string' ? JSON.parse(parsed.budget) : parsed.budget;
+                    if (parsed.goal) portfolioGoal = parsed.goal;
+                    window.renderDashboard();
+                } catch(e) { console.error("Error loading local data", e); }
+            }
+        }
+
+        window.saveDataToFirebase = async function() {
+            if (!currentUsername) return;
+            const dataToSave = { transactions: JSON.stringify(allTransactions), dividends: JSON.stringify(allDividends), budget: JSON.stringify(allBudgetMovements), goal: portfolioGoal };
+            
+            localStorage.setItem(`fin_data_${currentUsername}`, JSON.stringify({
+                transactions: allTransactions,
+                dividends: allDividends,
+                budget: allBudgetMovements,
+                goal: portfolioGoal
+            }));
+
+            if (!db || !auth.currentUser) return;
+            try { await setDoc(doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'user_finances', currentUsername), dataToSave); } catch (e) { console.error(e); }
+        };
+
+        function listenToUserData() {
+            if (!db || !auth.currentUser || !currentUsername) { window.renderDashboard(); return; }
+            const ref = doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'user_finances', currentUsername);
+            onSnapshot(ref, snap => {
+                if (snap.exists()) {
+                    const d = snap.data();
+                    if (d.transactions) allTransactions = typeof d.transactions === 'string' ? JSON.parse(d.transactions) : d.transactions;
+                    if (d.dividends) allDividends = typeof d.dividends === 'string' ? JSON.parse(d.dividends) : d.dividends;
+                    if (d.budget) allBudgetMovements = typeof d.budget === 'string' ? JSON.parse(d.budget) : d.budget;
+                    if (d.goal) portfolioGoal = d.goal;
+                    localStorage.setItem(`fin_data_${currentUsername}`, JSON.stringify({ transactions: allTransactions, dividends: allDividends, budget: allBudgetMovements, goal: portfolioGoal }));
+                } else { window.saveDataToFirebase(); }
+                window.renderDashboard();
+            }, err => console.error("Erreur de récupération:", err));
+        }
+
+        async function initFirebase() {
+            const btn = document.getElementById('login-btn');
+            
+            const firebaseConfig = {
+                apiKey: "AIzaSyAz3Z-QlV41iHxO2821iYOo9BXfw8C0KXM",
+                authDomain: "findesk-a6f64.firebaseapp.com",
+                projectId: "findesk-a6f64",
+                storageBucket: "findesk-a6f64.firebasestorage.app",
+                messagingSenderId: "372751135060",
+                appId: "1:372751135060:web:30641acd27311f24a098c1",
+                measurementId: "G-HG7P5NSQT5"
+            };
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                getAnalytics(app); 
+                auth = getAuth(app); 
+                db = getFirestore(app);
+                appId = "findesk_prod"; 
+                
+                await signInAnonymously(auth);
+                
+                onAuthStateChanged(auth, user => {
+                    if (!user) return;
+                    const authRef = doc(db, 'artifacts', appId, 'users', user.uid, 'app_config', 'auth_users');
+                    onSnapshot(authRef, snap => {
+                        if (snap.exists()) authUsersDict = snap.data().users || {};
+                        const su = localStorage.getItem('fin_user');
+                        if (su) { let p={pea:true,cto:true,budget:true}; if(authUsersDict[su]&&typeof authUsersDict[su]==='object') p=authUsersDict[su].perms; performLogin(su,p); }
+                        else { btn.innerText = "Accéder au portefeuille"; btn.disabled = false; }
+                    }, err => {
+                        console.error("Erreur accès utilisateurs:", err);
+                        btn.innerText = "Accéder au portefeuille (Mode local)"; btn.disabled = false;
+                    });
+                });
+            } catch (e) {
+                console.error("Erreur d'initialisation Firebase :", e);
+                btn.innerText = "Accéder au portefeuille (Mode local)"; btn.disabled = false;
+                const su = localStorage.getItem('fin_user'); if (su) performLogin(su);
+            }
+        }
+
+        window.handleCreateUser = async function(e) {
+            e.preventDefault();
+            const email=document.getElementById('new-user-email').value.trim(),user=document.getElementById('new-user-id').value.trim(),pass=document.getElementById('new-user-pass').value;
+            if(!user||!pass||!email) return;
+            const perms={pea:document.getElementById('perm-pea').checked,cto:document.getElementById('perm-cto').checked,budget:document.getElementById('perm-budget').checked};
+            authUsersDict[user]={pass,email,perms};
+            if(db && auth.currentUser){
+                const ref=doc(db,'artifacts',appId,'users',auth.currentUser.uid,'app_config','auth_users');
+                await setDoc(ref,{users:authUsersDict});
+                window.showToast(`Utilisateur créé. Email simulé à ${email} !`);
+                renderAdminUsers();
+                e.target.reset();
+            }
+            else window.showToast(`Mode hors-ligne: Création réussie`);
+        };
+
+        function renderAdminUsers() {
+            const tbody=document.getElementById('admin-users-list'); if(!tbody) return; tbody.innerHTML='';
+            const all={"axel.peyroche":{pass:"Ysolubuk70",email:"axel.peyroche43@gmail.com",perms:{pea:true,cto:true,budget:true}},...authUsersDict};
+            Object.keys(all).forEach(u=>{
+                const d=all[u]; const pwd=typeof d==='string'?d:d.pass; const em=typeof d==='string'?'N/A':(d.email||'N/A');
+                let tags=[];
+                if(typeof d==='object'&&d.perms){if(d.perms.pea)tags.push('<span class="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded">PEA</span>');if(d.perms.cto)tags.push('<span class="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded">CTO</span>');if(d.perms.budget)tags.push('<span class="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded">Budget</span>');}
+                else tags.push('<span class="bg-gray-100 text-gray-800 text-xs px-2 py-0.5 rounded">Tous</span>');
+                tbody.insertAdjacentHTML('beforeend',`<tr class="border-b hover:bg-gray-50"><td class="px-4 py-3 font-medium">${u}</td><td class="px-4 py-3 text-gray-500">${em}</td><td class="px-4 py-3 flex gap-2 items-center"><span class="text-gray-500 font-mono text-xs">${pwd}</span><div class="flex gap-1">${tags.join('')}</div></td></tr>`);
+            });
+        }
+
+        // ==========================================
+        // 11. INITIALISATION DE L'UI
+        // ==========================================
+        window.switchTab = function(tabId) {
+            currentTab = tabId;
+            document.querySelectorAll('.tab-content').forEach(el => { el.classList.add('hidden'); el.classList.remove('block'); });
+            const target = document.getElementById('tab-' + tabId); if (target) { target.classList.remove('hidden'); target.classList.add('block'); }
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('nav-active', 'subnav-active'));
+            if (['pea','cto','bourse-recap'].includes(tabId)) {
+                document.getElementById('btn-bourse-recap')?.classList.add('nav-active');
+                if (tabId === 'pea') document.getElementById('btn-pea')?.classList.add('subnav-active'); if (tabId === 'cto') document.getElementById('btn-cto')?.classList.add('subnav-active');
+                if(!liveUpdateInterval) liveUpdateInterval = setInterval(fetchLivePrices, 60000);
+            } else { 
+                document.getElementById('btn-' + tabId)?.classList.add('nav-active'); 
+                if(liveUpdateInterval) { clearInterval(liveUpdateInterval); liveUpdateInterval = null; }
+            }
+            const mob = document.getElementById('mobile-nav'); if (mob && mob.value !== tabId) mob.value = tabId;
+            
+            const fabTx = document.getElementById('fab-tx-btn'), fabDiv = document.getElementById('fab-div-btn'), fabBudget = document.getElementById('fab-budget-btn');
+            const fabIcon = document.getElementById('fab-icon');
+            const fabMenu = document.getElementById('fab-menu');
+            const fabContainer = document.getElementById('fab-container');
+            
+            if (tabId === 'budget') { 
+                fabTx?.classList.add('hidden'); 
+                fabDiv?.classList.add('hidden'); 
+                fabBudget?.classList.add('hidden'); // On le cache dans le menu car l'action est directe
+                // S'assurer que le menu est fermé quand on arrive sur cet onglet
+                fabMenu?.classList.remove('active');
+                if (fabIcon) {
+                    fabIcon.style.transform = "rotate(0deg)";
+                    fabIcon.classList.remove('ph-x');
+                    fabIcon.classList.add('ph-plus');
+                }
+            } else if (['pea', 'cto', 'bourse-recap'].includes(tabId)) { 
+                fabTx?.classList.remove('hidden'); 
+                fabDiv?.classList.remove('hidden'); 
+                fabBudget?.classList.add('hidden');
+                // S'assurer que le menu est fermé
+                fabMenu?.classList.remove('active');
+                if (fabIcon) {
+                    fabIcon.style.transform = "rotate(0deg)";
+                    fabIcon.classList.remove('ph-x');
+                    fabIcon.classList.add('ph-plus');
+                }
+            } else { 
+                fabTx?.classList.add('hidden'); 
+                fabDiv?.classList.add('hidden'); 
+                fabBudget?.classList.add('hidden'); 
+            }
+            
+            // Masquer tout le bouton flottant sur la page admin
+            if (tabId === 'admin') {
+                fabContainer?.classList.add('hidden');
+            } else {
+                fabContainer?.classList.remove('hidden');
+            }
+            
+            if (tabId === 'admin') renderAdminUsers();
+        };
+
+        function initCharts() {
+            Chart.defaults.font.family = "'Inter', sans-serif"; Chart.defaults.color = '#6b7280';
+            Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(17,24,39,0.92)'; Chart.defaults.plugins.tooltip.padding = 10; Chart.defaults.plugins.tooltip.cornerRadius = 8;
+            
+            const pieOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } }, tooltip: { callbacks: { label: c => { const t=c.chart._metasets[c.datasetIndex].total; return [` ${((c.raw/t)*100).toFixed(2).replace('.',',')} %`, ` ${eurFmt.format(c.raw)}`]; } } } } };
+            const mkPie = id => { const el=document.getElementById(id); return el ? new Chart(el.getContext('2d'),{type:'pie',data:{labels:[],datasets:[{data:[],borderWidth:0}]},options:pieOpts}) : null; };
+            
+            recapPieChartInstance = mkPie('recapPieChart');
+            if (recapPieChartInstance) { recapPieChartInstance.data.labels=['PEA','CTO']; recapPieChartInstance.data.datasets[0].data=[0,0]; recapPieChartInstance.data.datasets[0].backgroundColor=['#93C5FD','#C4B5FD']; } // PASTEL BLUE & PURPLE
+            
+            recapGlobalPieChartInstance = (() => {
+                const el = document.getElementById('recapGlobalPieChart'); if(!el) return null;
+                return new Chart(el.getContext('2d'), { type:'pie', data:{labels:[],datasets:[{data:[],customQty:[],backgroundColor:[],borderWidth:0}]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'right',labels:{boxWidth:12,usePointStyle:true,font:{size:10}}}, tooltip:{callbacks:{label:c=>{const t=c.chart._metasets[c.datasetIndex].total;return[` ${c.label}`,` Qté: ${numFmt.format(c.dataset.customQty[c.dataIndex])}`,` ${eurFmt.format(c.raw)}`,` ${((c.raw/t)*100).toFixed(2)}%`];}}}}}});
+            })();
+            
+            pieCharts.pea = mkPie('peaPieChart'); pieCharts.cto = mkPie('ctoPieChart');
+            
+            const hBarOpts = { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { callback: v => v + ' €' } }, y: { grid: { display: false } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${eurFmt.format(c.raw)}` } } } };
+            const hdEl = document.getElementById('recapDivHistoryChart'); if (hdEl) recapDivHistoryChart = new Chart(hdEl.getContext('2d'), { type: 'bar', data: { labels: ['PEA', 'CTO'], datasets: [{ data: [0, 0], backgroundColor: ['#93C5FD', '#C4B5FD'], borderRadius: 4 }] }, options: hBarOpts });
+            const fdEl = document.getElementById('recapDivForecastChart'); if (fdEl) recapDivForecastChart = new Chart(fdEl.getContext('2d'), { type: 'bar', data: { labels: ['PEA', 'CTO'], datasets: [{ data: [0, 0], backgroundColor: ['#A7C7E7', '#D8B4FE'], borderRadius: 4 }] }, options: hBarOpts });
+
+            // CONFIGURATION LIGNE POUR SUPPORTER LE PRU
+            const lineOpts = { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                interaction: { mode: 'index', intersect: false }, 
+                scales: { 
+                    y: { display: true, ticks: { callback: v => v.toFixed(2)+' €' } }, 
+                    x: { display: true, grid: { display: false }, ticks: { maxTicksLimit: 7 } } 
+                }, 
+                plugins: { 
+                    legend: { display: false }, 
+                    tooltip: { 
+                        filter: function(tooltipItem) {
+                            return tooltipItem.datasetIndex === 0; // Masque le PRU (index 1) du tooltip
+                        },
+                        callbacks: { label: c => ` ${c.dataset.label} : ${eurFmt.format(c.raw)}` } 
+                    } 
+                } 
+            };
+            const mkLine = id => { 
+                const el=document.getElementById(id); 
+                return el ? new Chart(el.getContext('2d'),{
+                    type:'line',
+                    data:{
+                        labels:dynamicLabels,
+                        datasets:[
+                            {label: 'Cours', data:[], borderWidth:2.5, tension:0.2, pointRadius:0, fill:true, order: 2},
+                            {label: 'PRU', data:[], borderColor: '#ef4444', borderWidth: 1.5, borderDash: [5, 5], pointRadius: 0, fill: false, tension: 0, order: 1}
+                        ]
+                    },
+                    options:lineOpts
+                }) : null; 
+            };
+            activeLineCharts.pea = mkLine('peaLineChart'); activeLineCharts.cto = mkLine('ctoLineChart');
+
+            const barOpts={responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{callback:v=>v+' €'}}},plugins:{legend:{position:'bottom',labels:{boxWidth:10,usePointStyle:true}},tooltip:{callbacks:{label:c=>` ${c.dataset.label} : ${eurFmt.format(c.raw)}`}}}};
+            const mkBar = id => { const el=document.getElementById(id); return el ? new Chart(el.getContext('2d'),{type:'bar',data:{labels:[],datasets:[]},options:barOpts}) : null; };
+            dividendCharts.pea = mkBar('pea-dividend-chart'); dividendCharts.cto = mkBar('cto-dividend-chart');
+
+            const mkDonut = (id, data, bg, cutout, labels) => { 
+                const el=document.getElementById(id); 
+                return el ? new Chart(el.getContext('2d'),{
+                    type:'doughnut',
+                    data:{
+                        labels: labels || [], 
+                        datasets:[{data,backgroundColor:bg,borderWidth:0}]
+                    },
+                    options:{
+                        responsive:true,
+                        maintainAspectRatio:false,
+                        cutout,
+                        plugins:{
+                            legend:{display:false},
+                            tooltip:{
+                                enabled:true,
+                                callbacks:{
+                                    label: c => ` ${c.label} : ${eurFmt.format(c.raw)}`
+                                }
+                            }
+                        }
+                    }
+                }) : null; 
+            };
+            
+            budgetCharts.solde = mkDonut('budgetSoldeChart', [0,1], ['#10b981','#f3f4f6'], '80%', ['Solde positif', 'Dépenses']);
+            budgetCharts.repart = mkDonut('budgetRepartChart', [1,1], ['#ef4444','#f97316'], '70%', ['Fixes', 'Variables']);
+            budgetCharts.cb = mkDonut('budgetCbChart', [1,1,1], ['#1e3a8a','#d1d5db','#a855f7'], '70%', ['Banque Populaire', 'Trade Republic', 'Bourso Bank']);
+            
+            const barEl=document.getElementById('budgetBarChart');
+            budgetCharts.bar = barEl ? new Chart(barEl.getContext('2d'),{type:'bar',data:{labels:['Revenus','Dép. fixes','Dép. variables'],datasets:[{label:'Actuel',data:[0,0,0],backgroundColor:'#3b82f6'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}}) : null;
+            const evolEl=document.getElementById('budgetEvolChart');
+            budgetCharts.evol = evolEl ? new Chart(evolEl.getContext('2d'),{type:'line',data:{labels:[],datasets:[{label:'Revenus',data:[],borderColor:'#6EE7B7',backgroundColor:'#6EE7B7',tension:0.3},{label:'Dép. fixes',data:[],borderColor:'#FCA5A5',backgroundColor:'#FCA5A5',tension:0.3},{label:'Dép. variables',data:[],borderColor:'#FCD34D',backgroundColor:'#FCD34D',tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{usePointStyle:true,boxWidth:8}},tooltip:{callbacks:{label:c=>` ${c.dataset.label} : ${eurFmt.format(c.raw)}`}}},scales:{y:{beginAtZero:true,ticks:{callback:v=>v+' €'}}}}}) : null;
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            const btn = document.getElementById('login-btn');
+            btn.innerText = "Chargement sécurisé...";
+            btn.disabled = true;
+            initCharts();
+            initFirebase();
+        });
+    </script>
+</body>
+</html>
