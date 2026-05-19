@@ -2407,7 +2407,7 @@
                 const actions = isAdmin
                     ? `<span class="text-xs text-gray-400 italic">Compte principal</span>`
                     : `<button onclick="window.openEditUserModal('${u}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier le profil"><i class="ph-bold ph-pencil-simple text-base"></i></button>
-                       <button onclick="window.resendEmail('${u}')" class="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors" title="Renvoyer les identifiants par email"><i class="ph-bold ph-paper-plane-right text-base"></i></button>
+                       <button onclick="window.resendEmail('${u}', this)" class="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors" title="Renvoyer les identifiants par email"><i class="ph-bold ph-paper-plane-right text-base"></i></button>
                        <button onclick="window.handleDeleteUser('${u}')" class="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer le compte"><i class="ph-bold ph-trash text-base"></i></button>`;
                 tbody.insertAdjacentHTML('beforeend',`
                     <tr class="border-b hover:bg-gray-50">
@@ -2470,14 +2470,13 @@
             window.showToast(`Compte "${username}" supprimé.`);
         };
 
-        window.resendEmail = async function(username) {
+        window.resendEmail = async function(username, btn) {
             const all = {"axel.peyroche":{pass:"Ysolubuk70",email:"axel.peyroche43@gmail.com"},...authUsersDict};
             const d = all[username];
-            if(!d) return;
-            const email = typeof d === 'string' ? null : d.email;
-            const pass  = typeof d === 'string' ? d : d.pass;
+            if(!d) { window.showToast('Utilisateur introuvable.', 'error'); return; }
+            const email = typeof d === 'string' ? null : (d.email || null);
+            const pass  = typeof d === 'string' ? d : (d.pass || '');
             if(!email) { window.showToast('Aucune adresse email associée à ce compte.', 'error'); return; }
-            const btn = document.querySelector(`button[onclick="window.resendEmail('${username}')"]`);
             if(btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-circle-notch animate-spin text-base"></i>'; }
             try {
                 const r = await fetch('/api/send-email', {
@@ -2489,6 +2488,7 @@
                 if(result.ok) window.showToast(`Email renvoyé à ${email} !`);
                 else window.showToast(`Erreur envoi : ${result.error}`, 'error');
             } catch(e) {
+                console.error('[resendEmail]', e);
                 window.showToast('Erreur réseau lors de l\'envoi.', 'error');
             }
             if(btn) { btn.disabled = false; btn.innerHTML = '<i class="ph-bold ph-paper-plane-right text-base"></i>'; }
