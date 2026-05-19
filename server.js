@@ -176,12 +176,14 @@ http.createServer(async (req, res) => {
                     const r = await fetch(`https://scanner.tradingview.com/${market}/scan`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
-                        body: JSON.stringify({ symbols: { tickers: [tvSymbol] }, columns: ['earnings_per_share_basic_ttm'] }),
+                        body: JSON.stringify({ symbols: { tickers: [tvSymbol] }, columns: ['earnings_per_share_basic_ttm', 'price_earnings_ttm'] }),
                     });
                     const tvData = await r.json();
-                    const eps = tvData?.data?.[0]?.d?.[0];
-                    if (typeof eps === 'number') {
-                        const result = { eps, periods: 1 };
+                    const d0 = tvData?.data?.[0]?.d;
+                    const eps = typeof d0?.[0] === 'number' ? d0[0] : null;
+                    const per = typeof d0?.[1] === 'number' ? d0[1] : null;
+                    if (eps !== null || per !== null) {
+                        const result = { eps, per, periods: 1 };
                         setCache(cacheKey, result);
                         return json(res, result);
                     }
