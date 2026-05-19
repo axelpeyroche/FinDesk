@@ -128,6 +128,18 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
+        // ---- Diagnostic Finnhub ----
+        if (p === '/api/debug-finnhub') {
+            const ticker = parsed.searchParams.get('t') || 'MC.PA';
+            const key = process.env.FINNHUB_API_KEY;
+            if (!key) return json(res, { error: 'FINNHUB_API_KEY non définie' });
+            try {
+                const r = await fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all&token=${key}`, { headers: { 'User-Agent': UA } });
+                const text = await r.text();
+                return json(res, { status: r.status, body: JSON.parse(text) });
+            } catch(e) { return json(res, { error: e.message }); }
+        }
+
         // ---- EPS via Finnhub (cache 24h) ----
         if (p.startsWith('/api/eps/')) {
             const ticker = decodeURIComponent(p.replace('/api/eps/', ''));
