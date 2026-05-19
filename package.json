@@ -2,5 +2,8 @@
   "name": "findesk",
   "version": "1.0.0",
   "engines": { "node": ">=18" },
-  "scripts": { "start": "node server.js" }
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "nodemailer": "^6.9.0"
+  }
 }

@@ -859,7 +859,7 @@
             try {
                 const stocks = {};
                 Object.entries(stockDatabase).forEach(([t, d]) => {
-                    stocks[t] = { currentPrice: d.currentPrice, exchange: d.exchange, eps: d.eps, currency: d.currency, ytd: d.ytd, div: d.div, history: d.history, timestamps: d.timestamps };
+                    stocks[t] = { currentPrice: d.currentPrice, priceFromApi: d.priceFromApi || false, exchange: d.exchange, eps: d.eps, currency: d.currency, ytd: d.ytd, div: d.div, history: d.history, timestamps: d.timestamps };
                 });
                 localStorage.setItem(`findesk_market_${currentUsername}`, JSON.stringify({ ts: Date.now(), stocks, charts: { ...chartCache } }));
             } catch(e) {}
@@ -876,7 +876,7 @@
                 Object.entries(stocks || {}).forEach(([t, d]) => {
                     if (stockDatabase[t]) {
                         Object.assign(stockDatabase[t], d);
-                        if (d.currentPrice) stockDatabase[t].priceFromApi = true;
+                        stockDatabase[t].priceFromApi = d.priceFromApi === true;
                         applied = true;
                     }
                 });
@@ -1012,13 +1012,30 @@
             }, 400);
         };
 
-        window.selectStock = function(symbol, name) {
+        window.selectStock = async function(symbol, name) {
             document.getElementById(`new-stock-name`).value = name;
             document.getElementById(`new-stock-code`).value = symbol;
             document.getElementById(`search-input`).value = name;
             const resultsEl = document.getElementById(`search-results`);
             resultsEl.classList.add('hidden');
             resultsEl.innerHTML = '';
+
+            // Pré-remplissage immédiat du prix unitaire
+            const priceInput = document.querySelector('#tx-form input[name="unitPrice"]');
+            if (!priceInput) return;
+            priceInput.placeholder = 'Chargement...';
+            priceInput.value = '';
+            try {
+                await fetchExchangeRate();
+                const data = await apiFetch(`/api/quote?symbols=${encodeURIComponent(symbol)}`);
+                const q = data?.quoteResponse?.result?.[0];
+                if (q && q.regularMarketPrice > 0) {
+                    const rate = (q.currency === 'USD') ? usdToEurRate : 1;
+                    priceInput.value = (q.regularMarketPrice * rate).toFixed(2);
+                    window.calculateTotalForm(priceInput);
+                }
+            } catch(e) {}
+            priceInput.placeholder = '0.00';
         };
 
         document.addEventListener('click', (e) => {
@@ -1415,12 +1432,17 @@
             if ((!data.eps || data.eps === '-') && !data._epsFetching) {
                 data._epsFetching = true;
                 apiFetch(`/api/summary/${stockCode}`).then(d => {
-                    const ks = d?.quoteSummary?.result?.[0];
+                    const res = d?.quoteSummary?.result?.[0];
                     const rate = data.currency === 'USD' ? usdToEurRate : 1;
-                    const eps = ks?.defaultKeyStatistics?.trailingEps?.raw ?? ks?.financialData?.revenuePerShare?.raw;
+                    // Cherche l'EPS dans plusieurs champs, ordre de priorité
+                    const eps =
+                        res?.defaultKeyStatistics?.trailingEps?.raw ??
+                        res?.defaultKeyStatistics?.forwardEps?.raw ??
+                        res?.incomeStatementHistory?.incomeStatementHistory?.[0]?.dilutedEPS?.raw;
                     if (eps != null && eps !== 0) {
                         data.eps = eurFmt.format(eps * rate);
-                        document.getElementById(`${portfolio}-eps`).innerText = data.eps;
+                        const el = document.getElementById(`${portfolio}-eps`);
+                        if (el) el.innerText = data.eps;
                     }
                 }).catch(() => {}).finally(() => { data._epsFetching = false; });
             }
@@ -2310,9 +2332,24 @@
             if(db && auth.currentUser){
                 const ref=doc(db,'artifacts',appId,'users',auth.currentUser.uid,'app_config','auth_users');
                 await setDoc(ref,{users:authUsersDict});
-                window.showToast(`Utilisateur créé. Email simulé à ${email} !`);
                 renderAdminUsers();
                 e.target.reset();
+                // Envoi email réel
+                try {
+                    const btn = e.target.querySelector('button[type="submit"]');
+                    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-circle-notch animate-spin"></i> Envoi...'; }
+                    const r = await fetch('/api/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ to: email, username: user, password: pass, appUrl: window.location.origin })
+                    });
+                    const result = await r.json();
+                    if (result.ok) window.showToast(`Compte créé — Email envoyé à ${email} !`);
+                    else window.showToast(`Compte créé mais erreur email : ${result.error}`, 'error');
+                    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ph-bold ph-plus"></i> Créer le compte et Envoyer Email'; }
+                } catch(err) {
+                    window.showToast(`Compte créé, erreur lors de l'envoi email`, 'error');
+                }
             }
             else window.showToast(`Mode hors-ligne: Création réussie`);
         };
