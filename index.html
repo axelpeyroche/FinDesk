@@ -1966,22 +1966,37 @@
             });
         }
 
+        async function fetchTvPrices() {
+            const tickers = Object.keys(stockDatabase); if (!tickers.length) return;
+            try {
+                const prices = await apiFetch(`/api/tv-prices?symbols=${encodeURIComponent(tickers.join(','))}`);
+                Object.entries(prices).forEach(([ticker, { price, currency }]) => {
+                    const db = stockDatabase[ticker];
+                    if (!db || typeof price !== 'number' || price <= 0) return;
+                    const rate = currency === 'USD' ? usdToEurRate : 1;
+                    db.currentPrice = +(price * rate).toFixed(4);
+                    db.currency     = currency;
+                    db.priceFromApi = true;
+                    db.priceKnown   = true;
+                });
+            } catch(e) { console.error('[tv-prices]', e.message); }
+        }
+
         async function fetchLivePrices() {
             const tickers = Object.keys(stockDatabase); if (!tickers.length) return;
 
-            // Un seul appel : taux de change + cours en parallèle côté serveur
+            // Taux de change + cours TradingView en parallèle
             try {
                 const data = await apiFetch(`/api/prices?symbols=${encodeURIComponent(tickers.join(','))}`);
                 if (data?.rate?.rates?.EUR) {
                     usdToEurRate = data.rate.rates.EUR;
                     document.querySelectorAll('.usd-rate-display').forEach(el => el.innerText = `USD/EUR: ${usdToEurRate.toFixed(4)}`);
                 }
-                if (data?.quote) await fetchBatchQuote(tickers, data.quote);
             } catch(e) {
-                // Fallback séquentiel si le nouvel endpoint échoue
                 await fetchExchangeRate();
-                await fetchBatchQuote(tickers);
             }
+            // Cours via TradingView (fonctionne depuis Render pour EU + US)
+            await fetchTvPrices();
 
             // Rendu immédiat dès que les cours sont là
             window.renderDashboard();

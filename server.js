@@ -77,6 +77,54 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
+        // ---- Cours batch via TradingView screener (cache 1 min) ----
+        if (p === '/api/tv-prices') {
+            const symbols = (parsed.searchParams.get('symbols') || '').split(',').filter(Boolean);
+            const key = `tv-prices:${symbols.join(',')}`;
+            const hit = getCached(key, 60 * 1000);
+            if (hit) return json(res, hit);
+
+            const tvMap = {
+                '.PA': ['france',      s => `EURONEXT:${s}`],
+                '.DE': ['germany',     s => `XETR:${s}`],
+                '.L':  ['uk',          s => `LSE:${s}`],
+                '.MI': ['italy',       s => `MIL:${s}`],
+                '.AS': ['netherlands', s => `EURONEXT:${s}`],
+                '.BR': ['belgium',     s => `EURONEXT:${s}`],
+                '.MC': ['spain',       s => `BME:${s}`],
+            };
+
+            const byMarket = {};
+            const symbolMap = {};
+            for (const ticker of symbols) {
+                const ext = Object.keys(tvMap).find(k => ticker.endsWith(k));
+                const market = ext ? tvMap[ext][0] : 'america';
+                const tvSym  = ext ? tvMap[ext][1](ticker.slice(0, -ext.length)) : ticker;
+                if (!byMarket[market]) byMarket[market] = [];
+                byMarket[market].push(tvSym);
+                symbolMap[tvSym] = ticker;
+            }
+
+            const prices = {};
+            await Promise.allSettled(Object.entries(byMarket).map(async ([market, tvSymbols]) => {
+                try {
+                    const r = await fetch(`https://scanner.tradingview.com/${market}/scan`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
+                        body: JSON.stringify({ symbols: { tickers: tvSymbols }, columns: ['close', 'currency'] }),
+                    });
+                    const data = await r.json();
+                    (data?.data || []).forEach(item => {
+                        const yahoo = symbolMap[item.s];
+                        if (yahoo && typeof item.d?.[0] === 'number') prices[yahoo] = { price: item.d[0], currency: item.d[1] || 'EUR' };
+                    });
+                } catch(e) { console.error('[tv-prices]', market, e.message); }
+            }));
+
+            setCache(key, prices);
+            return json(res, prices);
+        }
+
         // ---- Endpoint combiné taux + cours (1 seul aller-retour, cache 45s) ----
         if (p === '/api/prices') {
             const symbols = parsed.searchParams.get('symbols') || '';
@@ -149,15 +197,10 @@ http.createServer(async (req, res) => {
                     : Object.values(events)
                         .filter(e => e.epsActual != null && e.date <= now)
                         .sort((a, b) => b.date - a.date).slice(0, 4);
-                if (source.length > 0) {
-                    const ttmEps = source.reduce((s, e) => s + e.epsActual, 0);
-                    const result = { eps: ttmEps, periods: source.length };
-                    setCache(cacheKey, result);
-                    return json(res, result);
-                }
+                if (source.length > 0) epsFromChart = source.reduce((s, e) => s + e.epsActual, 0);
             } catch(e) { console.error('[eps chart]', e.message); }
 
-            // Tentative 2 : TradingView screener (actions EU, sans auth)
+            // Tentative 2 : TradingView screener (EU + US — EPS fallback + PER toujours)
             try {
                 const tvMap = {
                     '.PA': ['france',      s => `EURONEXT:${s}`],
@@ -169,28 +212,32 @@ http.createServer(async (req, res) => {
                     '.MC': ['spain',       s => `BME:${s}`],
                 };
                 const ext = Object.keys(tvMap).find(k => ticker.endsWith(k));
-                if (ext) {
-                    const [market, toTv] = tvMap[ext];
-                    const base = ticker.slice(0, -ext.length);
-                    const tvSymbol = toTv(base);
-                    const r = await fetch(`https://scanner.tradingview.com/${market}/scan`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
-                        body: JSON.stringify({ symbols: { tickers: [tvSymbol] }, columns: ['earnings_per_share_basic_ttm', 'price_earnings_ttm'] }),
-                    });
-                    const tvData = await r.json();
-                    const d0 = tvData?.data?.[0]?.d;
-                    const eps = typeof d0?.[0] === 'number' ? d0[0] : null;
-                    const per = typeof d0?.[1] === 'number' ? d0[1] : null;
-                    if (eps !== null || per !== null) {
-                        const result = { eps, per, periods: 1 };
-                        setCache(cacheKey, result);
-                        return json(res, result);
-                    }
+                const tvMarket = ext ? tvMap[ext][0] : 'america';
+                const tvSymbol = ext ? tvMap[ext][1](ticker.slice(0, -ext.length)) : ticker;
+                const r = await fetch(`https://scanner.tradingview.com/${tvMarket}/scan`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
+                    body: JSON.stringify({ symbols: { tickers: [tvSymbol] }, columns: ['earnings_per_share_basic_ttm', 'price_earnings_ttm'] }),
+                });
+                const tvData = await r.json();
+                const d0 = tvData?.data?.[0]?.d;
+                const tvEps = typeof d0?.[0] === 'number' ? d0[0] : null;
+                const per   = typeof d0?.[1] === 'number' ? d0[1] : null;
+                const eps   = epsFromChart ?? tvEps;
+                if (eps !== null || per !== null) {
+                    const result = { eps, per, periods: epsFromChart ? 4 : 1 };
+                    setCache(cacheKey, result);
+                    return json(res, result);
                 }
             } catch(e) { console.error('[eps tv]', e.message); }
 
-            const empty = { eps: null, periods: 0 };
+            if (epsFromChart !== null) {
+                const result = { eps: epsFromChart, per: null, periods: 4 };
+                setCache(cacheKey, result);
+                return json(res, result);
+            }
+
+            const empty = { eps: null, per: null, periods: 0 };
             setCache(cacheKey, empty);
             return json(res, empty);
         }
