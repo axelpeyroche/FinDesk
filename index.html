@@ -2654,6 +2654,23 @@
             }
             
             if (tabId === 'admin') renderAdminUsers();
+
+            // Forcer Chart.js à recalculer les dimensions après affichage (canvas était à 0 quand caché)
+            requestAnimationFrame(() => {
+                if (tabId === 'pea') {
+                    activeLineCharts.pea?.resize();
+                    pieCharts.pea?.resize();
+                    dividendCharts.pea?.resize();
+                } else if (tabId === 'cto') {
+                    activeLineCharts.cto?.resize();
+                    pieCharts.cto?.resize();
+                    dividendCharts.cto?.resize();
+                } else if (tabId === 'budget') {
+                    Object.values(budgetCharts).forEach(c => c?.resize());
+                } else if (tabId === 'bourse-recap') {
+                    Object.values(pieCharts).forEach(c => c?.resize());
+                }
+            });
         };
 
         function initCharts() {
