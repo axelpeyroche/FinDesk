@@ -179,19 +179,25 @@
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
                         <h3 class="text-sm font-bold text-gray-700 mb-4 text-center">Bilan des portefeuilles</h3>
-                        <div class="flex items-center justify-between p-4 border-b border-gray-50">
+                        <div class="flex items-center justify-between p-4 border-b border-gray-50 cursor-pointer hover:bg-blue-50 rounded-lg transition-colors group" onclick="window.switchTab('pea')">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xl"><i class="ph-bold ph-briefcase"></i></div>
-                                <div><p class="font-bold text-gray-800">PEA</p><p class="text-xs text-gray-500">Valorisation actuelle</p></div>
+                                <div><p class="font-bold text-gray-800 group-hover:text-blue-700 transition-colors">PEA</p><p class="text-xs text-gray-500">Valorisation actuelle</p></div>
                             </div>
-                            <p id="recap-pea-val" class="font-bold text-lg">0,00 €</p>
+                            <div class="flex items-center gap-2">
+                                <p id="recap-pea-val" class="font-bold text-lg">0,00 €</p>
+                                <i class="ph-bold ph-arrow-right text-gray-300 group-hover:text-blue-500 transition-colors"></i>
+                            </div>
                         </div>
-                        <div class="flex items-center justify-between p-4 mt-2">
+                        <div class="flex items-center justify-between p-4 mt-2 cursor-pointer hover:bg-purple-50 rounded-lg transition-colors group" onclick="window.switchTab('cto')">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-xl"><i class="ph-bold ph-globe-hemisphere-west"></i></div>
-                                <div><p class="font-bold text-gray-800">CTO</p><p class="text-xs text-gray-500">Valorisation actuelle</p></div>
+                                <div><p class="font-bold text-gray-800 group-hover:text-purple-700 transition-colors">CTO</p><p class="text-xs text-gray-500">Valorisation actuelle</p></div>
                             </div>
-                            <p id="recap-cto-val" class="font-bold text-lg">0,00 €</p>
+                            <div class="flex items-center gap-2">
+                                <p id="recap-cto-val" class="font-bold text-lg">0,00 €</p>
+                                <i class="ph-bold ph-arrow-right text-gray-300 group-hover:text-purple-500 transition-colors"></i>
+                            </div>
                         </div>
                     </div>
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -917,6 +923,7 @@
                     if (stockDatabase[t]) {
                         Object.assign(stockDatabase[t], d);
                         stockDatabase[t].priceFromApi = d.priceFromApi === true;
+                        stockDatabase[t].priceKnown   = d.currentPrice > 0;
                         applied = true;
                     }
                 });
@@ -1360,7 +1367,9 @@
                         <td class="px-4 py-3 text-right font-semibold">
                             ${stockDatabase[p.ticker]?.priceFromApi
                                 ? `<span class="flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="Cours en direct"></span>${eurFmt.format(p.currentPrice)}</span>`
-                                : `<span class="flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-orange-400" title="Chargement..."></span><span class="text-gray-400 text-xs">—</span></span>`}
+                                : stockDatabase[p.ticker]?.priceKnown
+                                    ? `<span class="flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-gray-400" title="Prix en cache"></span>${eurFmt.format(p.currentPrice)}</span>`
+                                    : `<span class="flex items-center justify-end gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" title="Chargement..."></span><span class="text-gray-400 text-xs">—</span></span>`}
                         </td>
                         <td class="px-4 py-3 text-right font-medium ${p.variation >= 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}">${p.variation > 0 ? '+' : ''}${pctFmt.format(p.variation)}</td>
                         <td class="px-4 py-3 text-right ${p.plusValue >= 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}">${p.plusValue > 0 ? '+' : ''}${eurFmt.format(p.plusValue)}</td>
@@ -1793,6 +1802,7 @@
                 if (typeof q.regularMarketPrice === 'number' && q.regularMarketPrice > 0) {
                     db.currentPrice = q.regularMarketPrice * rate;
                     db.priceFromApi = true;
+                    db.priceKnown   = true;
                 }
                 db.exchange = q.fullExchangeName || q.exchangeName || q.exchange || db.exchange || '-';
 
