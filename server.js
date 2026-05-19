@@ -184,6 +184,8 @@ http.createServer(async (req, res) => {
             const hit = getCached(cacheKey, 24 * 60 * 60 * 1000);
             if (hit) return json(res, hit);
 
+            let epsFromChart = null;
+
             // Tentative 1 : earnings events du chart Yahoo (US stocks)
             try {
                 const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=4y&interval=3mo&events=earnings&includePrePost=false`;
