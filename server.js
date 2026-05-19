@@ -253,6 +253,35 @@ http.createServer(async (req, res) => {
             return json(res, empty);
         }
 
+        // ---- Diagnostic EPS brut ----
+        if (p === '/api/debug-eps') {
+            const ticker = parsed.searchParams.get('t') || 'GOOGL';
+            const results = {};
+            // Test 1 : Yahoo chart earnings
+            try {
+                const chartData = await yFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=4y&interval=3mo&events=earnings&includePrePost=false`);
+                const events = chartData?.chart?.result?.[0]?.events?.earnings || {};
+                results.yahoo_chart = { count: Object.keys(events).length, sample: Object.values(events).slice(0, 2) };
+            } catch(e) { results.yahoo_chart = { error: e.message }; }
+            // Test 2 : TV screener bare ticker
+            try {
+                const r = await fetch(`https://scanner.tradingview.com/america/scan`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
+                    body: JSON.stringify({ symbols: { tickers: [ticker] }, columns: ['earnings_per_share_basic_ttm', 'price_earnings_ttm'] }),
+                });
+                results.tv_bare = { status: r.status, data: (await r.json())?.data };
+            } catch(e) { results.tv_bare = { error: e.message }; }
+            // Test 3 : TV screener NASDAQ:ticker
+            try {
+                const r = await fetch(`https://scanner.tradingview.com/america/scan`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', 'User-Agent': UA },
+                    body: JSON.stringify({ symbols: { tickers: [`NASDAQ:${ticker}`] }, columns: ['earnings_per_share_basic_ttm', 'price_earnings_ttm'] }),
+                });
+                results.tv_nasdaq = { status: r.status, data: (await r.json())?.data };
+            } catch(e) { results.tv_nasdaq = { error: e.message }; }
+            return json(res, results);
+        }
+
         // ---- Recherche TradingView fallback (cache 30s) ----
         if (p === '/api/tvsearch') {
             const q = parsed.searchParams.get('q') || '';
