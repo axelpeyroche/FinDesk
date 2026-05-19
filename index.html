@@ -2406,8 +2406,9 @@
                 const isAdmin = u === ADMIN;
                 const actions = isAdmin
                     ? `<span class="text-xs text-gray-400 italic">Compte principal</span>`
-                    : `<button onclick="window.openEditUserModal('${u}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier"><i class="ph-bold ph-pencil-simple text-base"></i></button>
-                       <button onclick="window.handleDeleteUser('${u}')" class="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer"><i class="ph-bold ph-trash text-base"></i></button>`;
+                    : `<button onclick="window.openEditUserModal('${u}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier le profil"><i class="ph-bold ph-pencil-simple text-base"></i></button>
+                       <button onclick="window.resendEmail('${u}')" class="p-1.5 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors" title="Renvoyer les identifiants par email"><i class="ph-bold ph-paper-plane-right text-base"></i></button>
+                       <button onclick="window.handleDeleteUser('${u}')" class="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer le compte"><i class="ph-bold ph-trash text-base"></i></button>`;
                 tbody.insertAdjacentHTML('beforeend',`
                     <tr class="border-b hover:bg-gray-50">
                         <td class="px-4 py-3 font-medium">${u}${isAdmin?'<span class="ml-2 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">ADMIN</span>':''}</td>
@@ -2467,6 +2468,30 @@
             }
             renderAdminUsers();
             window.showToast(`Compte "${username}" supprimé.`);
+        };
+
+        window.resendEmail = async function(username) {
+            const all = {"axel.peyroche":{pass:"Ysolubuk70",email:"axel.peyroche43@gmail.com"},...authUsersDict};
+            const d = all[username];
+            if(!d) return;
+            const email = typeof d === 'string' ? null : d.email;
+            const pass  = typeof d === 'string' ? d : d.pass;
+            if(!email) { window.showToast('Aucune adresse email associée à ce compte.', 'error'); return; }
+            const btn = document.querySelector(`button[onclick="window.resendEmail('${username}')"]`);
+            if(btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-circle-notch animate-spin text-base"></i>'; }
+            try {
+                const r = await fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ to: email, username, password: pass, appUrl: window.location.origin })
+                });
+                const result = await r.json();
+                if(result.ok) window.showToast(`Email renvoyé à ${email} !`);
+                else window.showToast(`Erreur envoi : ${result.error}`, 'error');
+            } catch(e) {
+                window.showToast('Erreur réseau lors de l\'envoi.', 'error');
+            }
+            if(btn) { btn.disabled = false; btn.innerHTML = '<i class="ph-bold ph-paper-plane-right text-base"></i>'; }
         };
 
         // ==========================================
