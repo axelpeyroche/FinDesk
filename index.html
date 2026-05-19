@@ -1859,7 +1859,7 @@
             // Serve from cache if fresh (< 5 min old)
             const cached = chartCache[ticker]?.[range];
             if (cached && (Date.now() - cached.ts) < CHART_CACHE_TTL) {
-                _applyChartData(ticker, range, cached.data);
+                _applyChartData(ticker, range, cached);
                 return;
             }
 
