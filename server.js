@@ -128,14 +128,14 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
-        // ---- Diagnostic quote Yahoo ----
-        if (p === '/api/debug-quote') {
+        // ---- Diagnostic chart earnings ----
+        if (p === '/api/debug-earnings') {
             const ticker = parsed.searchParams.get('t') || 'MC.PA';
             try {
-                const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=regularMarketPrice,epsTrailingTwelveMonths,currency,shortName`;
-                const r = await fetch(url, { headers: { 'User-Agent': UA } });
-                const text = await r.text();
-                return json(res, { status: r.status, body: text.slice(0, 800) });
+                const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=5y&interval=3mo&events=earnings&includePrePost=false`;
+                const data = await yFetch(url);
+                const events = data?.chart?.result?.[0]?.events?.earnings || {};
+                return json(res, { count: Object.keys(events).length, events });
             } catch(e) { return json(res, { error: e.message }); }
         }
 
