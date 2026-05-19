@@ -128,17 +128,25 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
-        // ---- Diagnostic FMP ----
+        // ---- Diagnostic EPS multi-sources ----
         if (p === '/api/debug-fmp') {
             const ticker = parsed.searchParams.get('t') || 'MC.PA';
             const apiKey = process.env.FMP_API_KEY;
-            if (!apiKey) return json(res, { error: 'FMP_API_KEY non définie', env: Object.keys(process.env).filter(k => k.startsWith('FMP')) });
-            const url = `https://financialmodelingprep.com/api/v3/key-metrics/${encodeURIComponent(ticker)}?limit=1&apikey=${apiKey}`;
-            try {
-                const r = await fetch(url, { headers: { 'User-Agent': UA } });
-                const text = await r.text();
-                return json(res, { status: r.status, ticker, url: url.replace(apiKey, 'HIDDEN'), body: text.slice(0, 500) });
-            } catch(e) { return json(res, { error: e.message }); }
+            const results = { ticker, fmp_key_present: !!apiKey, tests: {} };
+            if (apiKey) {
+                for (const ep of [
+                    `https://financialmodelingprep.com/api/v3/income-statement/${encodeURIComponent(ticker)}?limit=1&apikey=${apiKey}`,
+                    `https://financialmodelingprep.com/api/v3/earnings/${encodeURIComponent(ticker)}?apikey=${apiKey}`,
+                    `https://financialmodelingprep.com/stable/income-statement?symbol=${encodeURIComponent(ticker)}&limit=1&apikey=${apiKey}`,
+                ]) {
+                    try {
+                        const r = await fetch(ep, { headers: { 'User-Agent': UA } });
+                        const text = await r.text();
+                        results.tests[ep.replace(apiKey,'KEY').split('/api')[1]] = { status: r.status, body: text.slice(0, 300) };
+                    } catch(e) { results.tests[ep.split('/api')[1]] = { error: e.message }; }
+                }
+            }
+            return json(res, results);
         }
 
         // ---- EPS via Financial Modeling Prep (cache 24h) ----
