@@ -128,28 +128,7 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
-        // ---- Diagnostic EPS multi-sources ----
-        if (p === '/api/debug-fmp') {
-            const ticker = parsed.searchParams.get('t') || 'MC.PA';
-            const apiKey = process.env.FMP_API_KEY;
-            const results = { ticker, fmp_key_present: !!apiKey, tests: {} };
-            if (apiKey) {
-                for (const ep of [
-                    `https://financialmodelingprep.com/api/v3/income-statement/${encodeURIComponent(ticker)}?limit=1&apikey=${apiKey}`,
-                    `https://financialmodelingprep.com/api/v3/earnings/${encodeURIComponent(ticker)}?apikey=${apiKey}`,
-                    `https://financialmodelingprep.com/stable/income-statement?symbol=${encodeURIComponent(ticker)}&limit=1&apikey=${apiKey}`,
-                ]) {
-                    try {
-                        const r = await fetch(ep, { headers: { 'User-Agent': UA } });
-                        const text = await r.text();
-                        results.tests[ep.replace(apiKey,'KEY').split('/api')[1]] = { status: r.status, body: text.slice(0, 300) };
-                    } catch(e) { results.tests[ep.split('/api')[1]] = { error: e.message }; }
-                }
-            }
-            return json(res, results);
-        }
-
-        // ---- EPS via Financial Modeling Prep (cache 24h) ----
+        // ---- EPS via Finnhub (cache 24h) ----
         if (p.startsWith('/api/eps/')) {
             const ticker = decodeURIComponent(p.replace('/api/eps/', ''));
             const cacheKey = `eps:${ticker}`;
@@ -178,16 +157,19 @@ http.createServer(async (req, res) => {
                 }
             } catch(e) { console.error('[eps chart]', e.message); }
 
-            // Tentative 2 : Financial Modeling Prep (EU + US, nécessite FMP_API_KEY)
-            if (process.env.FMP_API_KEY) {
+            // Tentative 2 : Finnhub basic financials (EU + US, nécessite FINNHUB_API_KEY)
+            if (process.env.FINNHUB_API_KEY) {
                 try {
-                    const fmpUrl = `https://financialmodelingprep.com/api/v3/key-metrics/${encodeURIComponent(ticker)}?limit=1&apikey=${process.env.FMP_API_KEY}`;
-                    const fmpData = await yFetch(fmpUrl);
-                    const eps = fmpData?.[0]?.netIncomePerShare ?? fmpData?.[0]?.eps ?? null;
-                    const result = { eps: typeof eps === 'number' ? eps : null, periods: eps != null ? 1 : 0 };
-                    setCache(cacheKey, result);
-                    return json(res, result);
-                } catch(e) { console.error('[eps fmp]', e.message); }
+                    const fhUrl = `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all&token=${process.env.FINNHUB_API_KEY}`;
+                    const fhData = await yFetch(fhUrl);
+                    const m = fhData?.metric;
+                    const eps = m?.epsBasicExclExtraItemsTTM ?? m?.epsNormalizedAnnual ?? null;
+                    if (typeof eps === 'number') {
+                        const result = { eps, periods: 1 };
+                        setCache(cacheKey, result);
+                        return json(res, result);
+                    }
+                } catch(e) { console.error('[eps finnhub]', e.message); }
             }
 
             const empty = { eps: null, periods: 0 };
