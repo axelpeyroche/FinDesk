@@ -115,7 +115,8 @@ http.createServer(async (req, res) => {
                     });
                     const data = await r.json();
                     (data?.data || []).forEach(item => {
-                        const yahoo = symbolMap[item.s];
+                        // TV peut retourner "NASDAQ:AAPL" ou "AAPL" — on essaie les deux
+                        const yahoo = symbolMap[item.s] || symbolMap[item.s?.split(':').pop()];
                         if (yahoo && typeof item.d?.[0] === 'number') prices[yahoo] = { price: item.d[0], currency: item.d[1] || 'EUR' };
                     });
                 } catch(e) { console.error('[tv-prices]', market, e.message); }

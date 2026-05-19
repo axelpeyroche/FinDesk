@@ -1508,8 +1508,8 @@
                 });
             }
 
-            // Si BPA/PER manquant, on le charge
-            if ((!data.eps || data.eps === '-') && !data._epsFetching) {
+            // Si BPA ou PER manquant, on le charge
+            if ((!data.eps || data.eps === '-' || !data.per || data.per === '-') && !data._epsFetching) {
                 data._epsFetching = true;
                 fetchEps(stockCode).then(eps => {
                     const rate = data.currency === 'USD' ? usdToEurRate : 1;
@@ -2017,7 +2017,7 @@
             // BPA/PER en arrière-plan pour tous les tickers manquants → affichage instantané au prochain chargement
             tickers.forEach(ticker => {
                 const db = stockDatabase[ticker];
-                if (!db || db.eps && db.eps !== '-' || db._epsFetching) return;
+                if (!db || (db.eps && db.eps !== '-' && db.per && db.per !== '-') || db._epsFetching) return;
                 db._epsFetching = true;
                 fetchEps(ticker).then(eps => {
                     const rate = db.currency === 'USD' ? usdToEurRate : 1;
