@@ -960,19 +960,20 @@
             setTimeout(() => toast.remove(), 3300);
         };
 
-        // Extrait l'EPS brut (en devise locale) depuis /api/summary
+        // Extrait l'EPS TTM depuis /api/eps (earnings events chart, sans crumb)
         async function fetchEps(ticker) {
             try {
-                const d = await apiFetch(`/api/summary/${ticker}`);
-                const res = d?.quoteSummary?.result?.[0];
-                return (
-                    res?.defaultKeyStatistics?.trailingEps?.raw ??
-                    res?.financialData?.earningsPerShare?.raw ??
-                    res?.defaultKeyStatistics?.forwardEps?.raw ??
-                    res?.incomeStatementHistory?.incomeStatementHistory?.[0]?.dilutedEPS?.raw ??
-                    res?.earnings?.financialsChart?.yearly?.slice(-1)[0]?.earnings?.raw ??
-                    null
-                );
+                // Priorité 1 : epsTrailingTwelveMonths du batch quote (fonctionne pour US)
+                const db = stockDatabase[ticker];
+                if (db?._epsRaw != null) return db._epsRaw;
+
+                // Priorité 2 : earnings events du chart Yahoo (fonctionne EU + US)
+                const d = await apiFetch(`/api/eps/${ticker}`);
+                if (d?.eps != null) {
+                    if (db) db._epsRaw = d.eps;
+                    return d.eps;
+                }
+                return null;
             } catch { return null; }
         }
 
@@ -1827,6 +1828,9 @@
                     db.currentPrice = q.regularMarketPrice * rate;
                     db.priceFromApi = true;
                     db.priceKnown   = true;
+                }
+                if (q.epsTrailingTwelveMonths != null && q.epsTrailingTwelveMonths !== 0) {
+                    db._epsRaw = q.epsTrailingTwelveMonths;
                 }
                 db.exchange = q.fullExchangeName || q.exchangeName || q.exchange || db.exchange || '-';
 
