@@ -1781,10 +1781,10 @@
         // ==========================================
         // 7. APPELS API (YAHOO BATCH & GOOGLE FALLBACK)
         // ==========================================
-        async function fetchBatchQuote(tickers) {
+        async function fetchBatchQuote(tickers, prefetchedData) {
             const symbols = tickers.join(',');
             let data;
-            try { data = await apiFetch(`/api/quote?symbols=${encodeURIComponent(symbols)}`); } catch(e) { return; }
+            try { data = prefetchedData ?? await apiFetch(`/api/quote?symbols=${encodeURIComponent(symbols)}`); } catch(e) { return; }
             if (!data?.quoteResponse?.result) return;
             
             data.quoteResponse.result.forEach(q => {
@@ -1914,24 +1914,37 @@
         }
 
         async function fetchLivePrices() {
-            await fetchExchangeRate();
             const tickers = Object.keys(stockDatabase); if (!tickers.length) return;
 
-            await fetchBatchQuote(tickers);
-            window.renderDashboard();
-            refreshAnalysisPanel();
+            // Un seul appel : taux de change + cours en parallèle côté serveur
+            try {
+                const data = await apiFetch(`/api/prices?symbols=${encodeURIComponent(tickers.join(','))}`);
+                if (data?.rate?.rates?.EUR) {
+                    usdToEurRate = data.rate.rates.EUR;
+                    document.querySelectorAll('.usd-rate-display').forEach(el => el.innerText = `USD/EUR: ${usdToEurRate.toFixed(4)}`);
+                }
+                if (data?.quote) await fetchBatchQuote(tickers, data.quote);
+            } catch(e) {
+                // Fallback séquentiel si le nouvel endpoint échoue
+                await fetchExchangeRate();
+                await fetchBatchQuote(tickers);
+            }
 
-            const historyFetches = [];
-            ['pea', 'cto'].forEach(port => {
-                const sel = document.getElementById(`${port}-stock-select`);
-                const ticker = sel?.value || tickers.find(t => allTransactions.find(tx => tx.ticker === t && tx.port === port));
-                if (ticker) historyFetches.push(fetchChartHistory(ticker, currentChartRange[port] || '1y'));
-            });
-            await Promise.allSettled(historyFetches);
-
+            // Rendu immédiat dès que les cours sont là
             window.renderDashboard();
             refreshAnalysisPanel();
             saveMarketCache();
+
+            // Graphiques en arrière-plan — ne bloquent plus le rendu
+            ['pea', 'cto'].forEach(port => {
+                const sel = document.getElementById(`${port}-stock-select`);
+                const ticker = sel?.value || tickers.find(t => allTransactions.find(tx => tx.ticker === t && tx.port === port));
+                if (ticker) fetchChartHistory(ticker, currentChartRange[port] || '1y').then(() => {
+                    window.renderDashboard();
+                    refreshAnalysisPanel();
+                    saveMarketCache();
+                });
+            });
         }
 
         function updateDropdowns() {

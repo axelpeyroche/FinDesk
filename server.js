@@ -76,6 +76,31 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
+        // ---- Endpoint combiné taux + cours (1 seul aller-retour, cache 45s) ----
+        if (p === '/api/prices') {
+            const symbols = parsed.searchParams.get('symbols') || '';
+            const key = `prices:${symbols}`;
+            const hit = getCached(key, 45 * 1000);
+            if (hit) return json(res, hit);
+
+            const quoteUrl = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbols)}&fields=epsTrailingTwelveMonths,regularMarketPrice,currency,shortName,longName,exchange,exchangeName`;
+            const [rateRes, quoteRes] = await Promise.allSettled([
+                getCached('rate', 60 * 60 * 1000)
+                    ? Promise.resolve(getCached('rate', 60 * 60 * 1000))
+                    : yFetch('https://open.er-api.com/v6/latest/USD').then(d => { setCache('rate', d); return d; }),
+                getCached(`quote:${symbols}`, 60 * 1000)
+                    ? Promise.resolve(getCached(`quote:${symbols}`, 60 * 1000))
+                    : yFetch(quoteUrl).then(d => { setCache(`quote:${symbols}`, d); return d; }),
+            ]);
+
+            const result = {
+                rate:  rateRes.status  === 'fulfilled' ? rateRes.value  : null,
+                quote: quoteRes.status === 'fulfilled' ? quoteRes.value : null,
+            };
+            setCache(key, result);
+            return json(res, result);
+        }
+
         // ---- Historique graphique (cache 5 min) ----
         if (p.startsWith('/api/chart/')) {
             const ticker = decodeURIComponent(p.replace('/api/chart/', ''));
