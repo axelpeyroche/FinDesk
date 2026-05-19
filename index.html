@@ -960,46 +960,17 @@
             setTimeout(() => toast.remove(), 3300);
         };
 
-        // Récupère l'EPS directement depuis le navigateur (IP résidentielle, non bloquée par Yahoo)
-        async function fetchEpsBrowser(ticker) {
-            try {
-                // Étape 1 : obtenir un crumb Yahoo Finance depuis le navigateur
-                const crumbRes = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb');
-                if (!crumbRes.ok) return null;
-                const crumb = (await crumbRes.text()).trim();
-                if (!crumb || crumb.startsWith('{') || crumb.length < 3) return null;
-
-                // Étape 2 : quoteSummary avec le crumb
-                const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}?modules=defaultKeyStatistics,financialData&crumb=${encodeURIComponent(crumb)}`;
-                const r = await fetch(url);
-                if (!r.ok) return null;
-                const d = await r.json();
-                const res = d?.quoteSummary?.result?.[0];
-                return (
-                    res?.defaultKeyStatistics?.trailingEps?.raw ??
-                    res?.financialData?.earningsPerShare?.raw ??
-                    res?.defaultKeyStatistics?.forwardEps?.raw ??
-                    null
-                );
-            } catch { return null; }
-        }
-
-        // Extrait l'EPS — cascade : batch quote → chart events → fetch direct navigateur
+        // Extrait l'EPS — cascade : batch quote (US) → /api/eps proxy (EU via FMP)
         async function fetchEps(ticker) {
             try {
                 const db = stockDatabase[ticker];
-                // Priorité 1 : déjà extrait du batch quote (US stocks)
                 if (db?._epsRaw != null) return db._epsRaw;
-                // Priorité 2 : earnings events du chart (US stocks via proxy)
                 const d = await apiFetch(`/api/eps/${ticker}`);
                 if (d?.eps != null) {
                     if (db) db._epsRaw = d.eps;
                     return d.eps;
                 }
-                // Priorité 3 : fetch direct navigateur (EU stocks, bypass blocage Render)
-                const eps = await fetchEpsBrowser(ticker);
-                if (eps != null && db) db._epsRaw = eps;
-                return eps;
+                return null;
             } catch { return null; }
         }
 

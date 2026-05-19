@@ -128,35 +128,50 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
-        // ---- EPS via earnings events du chart (sans authentification, cache 24h) ----
+        // ---- EPS via Financial Modeling Prep (cache 24h) ----
         if (p.startsWith('/api/eps/')) {
             const ticker = decodeURIComponent(p.replace('/api/eps/', ''));
-            const key = `eps:${ticker}`;
-            const hit = getCached(key, 24 * 60 * 60 * 1000);
+            const cacheKey = `eps:${ticker}`;
+            const hit = getCached(cacheKey, 24 * 60 * 60 * 1000);
             if (hit) return json(res, hit);
 
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=4y&interval=3mo&events=earnings&includePrePost=false`;
-            const data = await yFetch(url);
-            const events = data?.chart?.result?.[0]?.events?.earnings || {};
-            const now = Date.now() / 1000;
-            const oneYearAgo = now - 365 * 24 * 3600;
+            // Tentative 1 : earnings events du chart Yahoo (US stocks, sans auth)
+            try {
+                const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=4y&interval=3mo&events=earnings&includePrePost=false`;
+                const chartData = await yFetch(chartUrl);
+                const events = chartData?.chart?.result?.[0]?.events?.earnings || {};
+                const now = Date.now() / 1000;
+                const oneYearAgo = now - 365 * 24 * 3600;
+                const recent = Object.values(events)
+                    .filter(e => e.epsActual != null && e.date <= now && e.date >= oneYearAgo)
+                    .sort((a, b) => b.date - a.date);
+                const source = recent.length >= 1 ? recent
+                    : Object.values(events)
+                        .filter(e => e.epsActual != null && e.date <= now)
+                        .sort((a, b) => b.date - a.date).slice(0, 4);
+                if (source.length > 0) {
+                    const ttmEps = source.reduce((s, e) => s + e.epsActual, 0);
+                    const result = { eps: ttmEps, periods: source.length };
+                    setCache(cacheKey, result);
+                    return json(res, result);
+                }
+            } catch(e) { console.error('[eps chart]', e.message); }
 
-            // Filtrer les earnings des 12 derniers mois avec epsActual connu
-            const recent = Object.values(events)
-                .filter(e => e.epsActual != null && e.date <= now && e.date >= oneYearAgo)
-                .sort((a, b) => b.date - a.date);
+            // Tentative 2 : Financial Modeling Prep (EU + US, nécessite FMP_API_KEY)
+            if (process.env.FMP_API_KEY) {
+                try {
+                    const fmpUrl = `https://financialmodelingprep.com/api/v3/key-metrics/${encodeURIComponent(ticker)}?limit=1&apikey=${process.env.FMP_API_KEY}`;
+                    const fmpData = await yFetch(fmpUrl);
+                    const eps = fmpData?.[0]?.netIncomePerShare ?? fmpData?.[0]?.eps ?? null;
+                    const result = { eps: typeof eps === 'number' ? eps : null, periods: eps != null ? 1 : 0 };
+                    setCache(cacheKey, result);
+                    return json(res, result);
+                } catch(e) { console.error('[eps fmp]', e.message); }
+            }
 
-            // Fallback : si pas assez de données sur 12 mois, prendre les 4 derniers disponibles
-            const source = recent.length >= 1 ? recent
-                : Object.values(events)
-                    .filter(e => e.epsActual != null && e.date <= now)
-                    .sort((a, b) => b.date - a.date)
-                    .slice(0, 4);
-
-            const ttmEps = source.length > 0 ? source.reduce((s, e) => s + e.epsActual, 0) : null;
-            const result = { eps: ttmEps, periods: source.length };
-            setCache(key, result);
-            return json(res, result);
+            const empty = { eps: null, periods: 0 };
+            setCache(cacheKey, empty);
+            return json(res, empty);
         }
 
         // ---- Recherche TradingView fallback (cache 30s) ----
