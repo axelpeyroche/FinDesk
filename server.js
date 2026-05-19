@@ -128,23 +128,15 @@ http.createServer(async (req, res) => {
             return json(res, data);
         }
 
-        // ---- Diagnostic Finnhub ----
-        if (p === '/api/debug-finnhub') {
+        // ---- Diagnostic quote Yahoo ----
+        if (p === '/api/debug-quote') {
             const ticker = parsed.searchParams.get('t') || 'MC.PA';
-            const key = process.env.FINNHUB_API_KEY;
-            if (!key) return json(res, { error: 'FINNHUB_API_KEY non définie' });
-            const results = {};
-            for (const ep of ['earnings', 'stock/earnings']) {
-                try {
-                    const url = ep === 'earnings'
-                        ? `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(ticker)}&token=${key}`
-                        : `https://finnhub.io/api/v1/stock/eps?symbol=${encodeURIComponent(ticker)}&token=${key}`;
-                    const r = await fetch(url, { headers: { 'User-Agent': UA } });
-                    const text = await r.text();
-                    results[ep] = { status: r.status, body: text.slice(0, 500) };
-                } catch(e) { results[ep] = { error: e.message }; }
-            }
-            return json(res, results);
+            try {
+                const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(ticker)}&fields=regularMarketPrice,epsTrailingTwelveMonths,currency,shortName`;
+                const r = await fetch(url, { headers: { 'User-Agent': UA } });
+                const text = await r.text();
+                return json(res, { status: r.status, body: text.slice(0, 800) });
+            } catch(e) { return json(res, { error: e.message }); }
         }
 
         // ---- EPS via Finnhub (cache 24h) ----
