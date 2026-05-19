@@ -224,6 +224,52 @@
                         <div class="relative h-48 w-full"><canvas id="recapDivForecastChart"></canvas></div>
                     </div>
                 </div>
+
+                <!-- Projection intérêts composés -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-4">
+                        <h3 class="text-sm font-bold text-gray-700 flex items-center gap-2">
+                            <i class="ph-fill ph-rocket-launch text-indigo-500"></i>
+                            Projection des portefeuilles — Intérêts composés
+                        </h3>
+                        <div class="flex flex-wrap items-center gap-4">
+                            <label class="flex items-center gap-1.5 text-sm text-gray-600">
+                                Taux annuel
+                                <input type="number" id="compound-rate" value="7" min="0" max="50" step="0.5"
+                                    oninput="window.updateCompoundChart()"
+                                    class="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm text-right focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                                <span class="text-gray-500 font-medium">%</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 text-sm text-gray-600">
+                                Horizon
+                                <input type="number" id="compound-years" value="10" min="1" max="50" step="1"
+                                    oninput="window.updateCompoundChart()"
+                                    class="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm text-right focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                                <span class="text-gray-500 font-medium">ans</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="relative h-72 w-full mb-5">
+                        <canvas id="recapCompoundChart"></canvas>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4 pt-4 border-t border-gray-100">
+                        <div class="text-center">
+                            <p class="text-[10px] text-gray-500 uppercase tracking-wider mb-1">PEA dans <span class="compound-years-label font-bold text-gray-700">10</span> ans</p>
+                            <p id="compound-pea-end" class="text-lg font-bold text-blue-600">-</p>
+                            <p id="compound-pea-gain" class="text-xs text-gray-400 mt-0.5"></p>
+                        </div>
+                        <div class="text-center border-x border-gray-100">
+                            <p class="text-[10px] text-gray-500 uppercase tracking-wider mb-1">CTO dans <span class="compound-years-label font-bold text-gray-700">10</span> ans</p>
+                            <p id="compound-cto-end" class="text-lg font-bold text-purple-600">-</p>
+                            <p id="compound-cto-gain" class="text-xs text-gray-400 mt-0.5"></p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Total dans <span class="compound-years-label font-bold text-gray-700">10</span> ans</p>
+                            <p id="compound-total-end" class="text-lg font-bold text-indigo-600">-</p>
+                            <p id="compound-total-gain" class="text-xs text-gray-400 mt-0.5"></p>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- ==================== PEA ==================== -->
@@ -954,7 +1000,8 @@
         };
         const typeColors = { "Revenus": "blue", "Dépenses fixes": "red", "Dépenses variables": "orange", "Économies": "emerald", "Dettes": "purple" };
 
-        let recapPieChartInstance = null, recapGlobalPieChartInstance = null, recapDivHistoryChart = null, recapDivForecastChart = null;
+        let recapPieChartInstance = null, recapGlobalPieChartInstance = null, recapDivHistoryChart = null, recapDivForecastChart = null, recapCompoundChart = null;
+        let compoundPeaVal = 0, compoundCtoVal = 0;
         let activeLineCharts = { pea: null, cto: null }, pieCharts = { pea: null, cto: null }, dividendCharts = { pea: null, cto: null };
         const chartCache = {}; // { [ticker]: { [range]: { data: {...}, ts: epoch_ms } } }
         const CHART_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -1029,6 +1076,39 @@
             label.innerText = r.label;
             label.className = `text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${r.bg} ${r.text}`;
         }
+
+        window.updateCompoundChart = function() {
+            const yearsInput = document.getElementById('compound-years');
+            const rateInput  = document.getElementById('compound-rate');
+            const years = Math.min(Math.max(parseInt(yearsInput?.value) || 10, 1), 50);
+            const rate  = Math.min(Math.max(parseFloat(rateInput?.value) || 7, 0), 50) / 100;
+
+            const labels = Array.from({ length: years + 1 }, (_, i) => i === 0 ? "Auj." : `+${i}a`);
+            const calcSeries = v0 => Array.from({ length: years + 1 }, (_, t) => +(v0 * Math.pow(1 + rate, t)).toFixed(2));
+            const peaData   = calcSeries(compoundPeaVal);
+            const ctoData   = calcSeries(compoundCtoVal);
+            const totalData = peaData.map((v, i) => +(v + ctoData[i]).toFixed(2));
+
+            if (recapCompoundChart) {
+                recapCompoundChart.data.labels = labels;
+                recapCompoundChart.data.datasets[0].data = peaData;
+                recapCompoundChart.data.datasets[1].data = ctoData;
+                recapCompoundChart.data.datasets[2].data = totalData;
+                recapCompoundChart.update();
+            }
+
+            const fmt = v => eurFmt.format(v);
+            const gain = (v0, vEnd) => v0 > 0 ? `+${eurFmt.format(vEnd - v0)} (×${(vEnd / v0).toFixed(2)})` : '';
+            const peaEnd = peaData[years], ctoEnd = ctoData[years], totalEnd = totalData[years];
+            const setEl = (id, txt) => { const el = document.getElementById(id); if (el) el.innerText = txt; };
+            setEl('compound-pea-end',    compoundPeaVal  > 0 ? fmt(peaEnd)   : '-');
+            setEl('compound-cto-end',    compoundCtoVal  > 0 ? fmt(ctoEnd)   : '-');
+            setEl('compound-total-end',  (compoundPeaVal + compoundCtoVal) > 0 ? fmt(totalEnd) : '-');
+            setEl('compound-pea-gain',   gain(compoundPeaVal, peaEnd));
+            setEl('compound-cto-gain',   gain(compoundCtoVal, ctoEnd));
+            setEl('compound-total-gain', gain(compoundPeaVal + compoundCtoVal, totalEnd));
+            document.querySelectorAll('.compound-years-label').forEach(el => el.innerText = years);
+        };
 
         function fmtMktCap(val, currency) {
             if (!val || val <= 0) return '-';
@@ -1439,6 +1519,9 @@
                 ctoData.positions.forEach(p => { fCto += p.qty * (stockDatabase[p.ticker]?.div?.annual || 0); });
                 recapDivForecastChart.data.datasets[0].data = [fPea, fCto]; recapDivForecastChart.update();
             }
+            compoundPeaVal = peaVal;
+            compoundCtoVal = ctoVal;
+            window.updateCompoundChart();
         }
 
         function renderPortfolio(port) {
@@ -2768,6 +2851,7 @@
                     Object.values(budgetCharts).forEach(c => c?.resize());
                 } else if (tabId === 'bourse-recap') {
                     Object.values(pieCharts).forEach(c => c?.resize());
+                    recapCompoundChart?.resize();
                 }
             });
         };
@@ -2792,6 +2876,35 @@
             const hBarOpts = { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { callback: v => v + ' €' } }, y: { grid: { display: false } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${eurFmt.format(c.raw)}` } } } };
             const hdEl = document.getElementById('recapDivHistoryChart'); if (hdEl) recapDivHistoryChart = new Chart(hdEl.getContext('2d'), { type: 'bar', data: { labels: ['PEA', 'CTO'], datasets: [{ data: [0, 0], backgroundColor: ['#93C5FD', '#C4B5FD'], borderRadius: 4 }] }, options: hBarOpts });
             const fdEl = document.getElementById('recapDivForecastChart'); if (fdEl) recapDivForecastChart = new Chart(fdEl.getContext('2d'), { type: 'bar', data: { labels: ['PEA', 'CTO'], datasets: [{ data: [0, 0], backgroundColor: ['#A7C7E7', '#D8B4FE'], borderRadius: 4 }] }, options: hBarOpts });
+
+            const compoundEl = document.getElementById('recapCompoundChart');
+            if (compoundEl) {
+                const compoundOpts = {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { maxTicksLimit: 11, font: { size: 11 } } },
+                        y: { beginAtZero: false, ticks: { callback: v => { if (v >= 1e6) return (v/1e6).toFixed(1)+'M €'; if (v >= 1e3) return (v/1e3).toFixed(0)+'k €'; return v+'€'; }, font: { size: 11 } }, grid: { color: '#f3f4f6' } }
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, font: { size: 11 } } },
+                        tooltip: { callbacks: { label: c => ` ${c.dataset.label} : ${eurFmt.format(c.raw)}` } }
+                    }
+                };
+                recapCompoundChart = new Chart(compoundEl.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            { label: 'PEA',   data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 2.5, pointRadius: 2, tension: 0.35, fill: true },
+                            { label: 'CTO',   data: [], borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,0.08)', borderWidth: 2.5, pointRadius: 2, tension: 0.35, fill: true },
+                            { label: 'Total', data: [], borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.06)', borderWidth: 2, pointRadius: 2, borderDash: [5,3], tension: 0.35, fill: false }
+                        ]
+                    },
+                    options: compoundOpts
+                });
+                window.updateCompoundChart();
+            }
 
             // CONFIGURATION LIGNE POUR SUPPORTER LE PRU
             const lineOpts = { 
