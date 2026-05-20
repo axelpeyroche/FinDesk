@@ -70,7 +70,7 @@
 
     <div id="app-container" class="hidden w-full h-full relative">
         <aside class="w-64 bg-white shadow-lg flex-col hidden lg:flex z-10 overflow-y-auto">
-            <div class="h-20 flex items-center px-8 border-b border-gray-100 flex-shrink-0">
+            <div class="h-20 flex items-center px-8 border-b border-gray-100 flex-shrink-0 cursor-pointer select-none" onclick="window.switchTab('home')">
                 <i class="ph-fill ph-chart-polar text-3xl text-blue-600 mr-3"></i>
                 <h1 class="text-xl font-bold text-gray-800 tracking-tight">FinDesk</h1>
             </div>
@@ -108,12 +108,13 @@
 
         <main class="flex-1 overflow-y-auto relative bg-gray-50 pb-10">
             <header class="lg:hidden bg-white shadow-sm p-4 flex justify-between items-center sticky top-0 z-20">
-                <div class="flex items-center">
+                <div class="flex items-center cursor-pointer select-none" onclick="window.switchTab('home')">
                     <i class="ph-fill ph-chart-polar text-2xl text-blue-600 mr-2"></i>
                     <h1 class="text-lg font-bold">FinDesk</h1>
                 </div>
                 <div class="flex items-center gap-2">
                     <select id="mobile-nav" onchange="window.switchTab(this.value)" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2">
+                        <option value="home" id="opt-home">Accueil</option>
                         <option value="bourse-recap" id="opt-recap">Synthèse Bourse</option>
                         <option value="pea" id="opt-pea">PEA</option>
                         <option value="cto" id="opt-cto">CTO</option>
@@ -123,6 +124,26 @@
                     <button onclick="window.logout()" class="text-red-500 p-2"><i class="ph-bold ph-sign-out"></i></button>
                 </div>
             </header>
+
+            <!-- ==================== ACCUEIL ==================== -->
+            <section id="tab-home" class="p-4 md:p-8 tab-content hidden">
+                <div class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-1">Bonjour, <span id="home-username">vous</span> 👋</h2>
+                        <p class="text-sm text-gray-500">Voici l'évolution de vos actions en portefeuille</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs font-medium text-gray-500 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        Données en direct
+                    </div>
+                </div>
+                <div id="home-stocks-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div class="col-span-full text-center text-gray-400 py-16 italic">Aucune action dans vos portefeuilles.</div>
+                </div>
+            </section>
 
             <!-- ==================== SYNTHESE BOURSE ==================== -->
             <section id="tab-bourse-recap" class="p-4 md:p-8 tab-content block">
@@ -1013,6 +1034,7 @@
         const typeColors = { "Revenus": "blue", "Dépenses fixes": "red", "Dépenses variables": "orange", "Économies": "emerald", "Dettes": "purple" };
 
         let recapPieChartInstance = null, recapGlobalPieChartInstance = null, recapDivHistoryChart = null, recapDivForecastChart = null, recapCompoundChart = null;
+        let homeCharts = {};
         let compoundPeaVal = 0, compoundCtoVal = 0, compoundAnnualDivPea = 0, compoundAnnualDivCto = 0;
         let activeLineCharts = { pea: null, cto: null }, pieCharts = { pea: null, cto: null }, dividendCharts = { pea: null, cto: null };
         const chartCache = {}; // { [ticker]: { [range]: { data: {...}, ts: epoch_ms } } }
@@ -1088,6 +1110,126 @@
             label.innerText = r.label;
             label.className = `text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${r.bg} ${r.text}`;
         }
+
+        // ==========================================
+        // HOME PAGE — Graphiques par action
+        // ==========================================
+        function _buildHomeChart(ticker, canvasEl) {
+            if (homeCharts[ticker]) { try { homeCharts[ticker].destroy(); } catch(e){} }
+            const color = colorMap[ticker] || '#3b82f6';
+            homeCharts[ticker] = new Chart(canvasEl.getContext('2d'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ data: [], borderColor: color, backgroundColor: color + '18', borderWidth: 2.5, pointRadius: 0, tension: 0.35, fill: true }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: { display: false },
+                        y: { display: true, position: 'right', ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(0), font: { size: 9 }, maxTicksLimit: 5 }, grid: { color: '#f3f4f620' } }
+                    },
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${eurFmt.format(c.raw)}` } } }
+                }
+            });
+        }
+
+        function _applyHomeChartData(ticker, data) {
+            const chart = homeCharts[ticker]; if (!chart) return;
+            const history = data.history || [];
+            const timestamps = data.timestamps || [];
+            if (!history.length) return;
+            const labels = timestamps.map(ts => {
+                const d = new Date(ts * 1000);
+                return d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+            });
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = history;
+            chart.update('none');
+            const tidSafe = ticker.replace(/[^a-zA-Z0-9]/g, '_');
+            const minEl = document.getElementById('home-min-' + tidSafe);
+            const maxEl = document.getElementById('home-max-' + tidSafe);
+            if (minEl) minEl.innerText = 'Min ' + eurFmt.format(Math.min(...history));
+            if (maxEl) maxEl.innerText = 'Max ' + eurFmt.format(Math.max(...history));
+        }
+
+        async function _updateHomeChart(ticker, range) {
+            const cached = chartCache[ticker]?.[range];
+            if (cached) { _applyHomeChartData(ticker, cached); return; }
+            await fetchChartHistory(ticker, range);
+            const fresh = chartCache[ticker]?.[range];
+            if (fresh) _applyHomeChartData(ticker, fresh);
+        }
+
+        window.changeHomeRange = function(ticker, range, btn) {
+            const tidSafe = ticker.replace(/[^a-zA-Z0-9]/g, '_');
+            document.querySelectorAll(`[data-home-ticker="${tidSafe}"]`).forEach(b => {
+                b.classList.remove('bg-white', 'shadow-sm', 'text-blue-600', 'font-bold');
+                b.classList.add('text-gray-500');
+            });
+            btn.classList.remove('text-gray-500');
+            btn.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-bold');
+            _updateHomeChart(ticker, range);
+        };
+
+        window.renderHomePage = function() {
+            const grid = document.getElementById('home-stocks-grid'); if (!grid) return;
+            const nameEl = document.getElementById('home-username'); if (nameEl) nameEl.innerText = currentUsername || 'vous';
+
+            const peaPos = getAggregatedPositions('pea').positions;
+            const ctoPos = getAggregatedPositions('cto').positions;
+            const seen = new Set();
+            const positions = [];
+            [...peaPos, ...ctoPos].forEach(p => { if (!seen.has(p.ticker)) { seen.add(p.ticker); positions.push({ ...p, port: ctoPos.some(c => c.ticker === p.ticker) && !peaPos.some(c => c.ticker === p.ticker) ? 'CTO' : peaPos.some(c => c.ticker === p.ticker) && ctoPos.some(c => c.ticker === p.ticker) ? 'PEA+CTO' : peaPos.some(c => c.ticker === p.ticker) ? 'PEA' : 'CTO' }); } });
+
+            if (!positions.length) {
+                grid.innerHTML = '<div class="col-span-full text-center text-gray-400 py-16 italic">Aucune action dans vos portefeuilles.</div>';
+                return;
+            }
+
+            Object.values(homeCharts).forEach(c => { try { c?.destroy(); } catch(e){} });
+            homeCharts = {};
+
+            const ranges = [{ r: '1y', l: '1A' }, { r: '2y', l: '2A' }, { r: '5y', l: '5A' }, { r: '10y', l: '10A' }, { r: 'max', l: 'Max' }];
+
+            grid.innerHTML = positions.map(p => {
+                const db = stockDatabase[p.ticker] || {};
+                const price = db.currentPrice || p.pru || 0;
+                const ytd = db.ytd;
+                const ytdStr = ytd != null ? ((ytd > 0 ? '+' : '') + pctFmt.format(ytd)) : null;
+                const ytdClass = ytd != null ? (ytd >= 0 ? 'text-green-600 bg-green-50 border-green-100' : 'text-red-600 bg-red-50 border-red-100') : 'text-gray-400 bg-gray-50 border-gray-100';
+                const tidSafe = p.ticker.replace(/[^a-zA-Z0-9]/g, '_');
+                const portColors = { 'PEA': 'bg-blue-100 text-blue-700', 'CTO': 'bg-purple-100 text-purple-700', 'PEA+CTO': 'bg-indigo-100 text-indigo-700' };
+                const portColor = portColors[p.port] || 'bg-gray-100 text-gray-600';
+                const btns = ranges.map((rv, i) => `<button onclick="window.changeHomeRange('${p.ticker}', '${rv.r}', this)" data-home-ticker="${tidSafe}" class="px-2 py-1 rounded transition-colors ${i === 0 ? 'bg-white shadow-sm text-blue-600 font-bold' : 'text-gray-500 hover:bg-gray-200'}">${rv.l}</button>`).join('');
+                return `
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex flex-col gap-3">
+                    <div class="flex justify-between items-start gap-3">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 flex-wrap mb-0.5">
+                                <span class="font-bold text-gray-800 truncate">${p.name}</span>
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full ${portColor} flex-shrink-0">${p.port}</span>
+                            </div>
+                            <p class="text-xs text-gray-400">${p.ticker}${db.exchange && db.exchange !== '-' ? ' · ' + db.exchange : ''}</p>
+                        </div>
+                        <div class="text-right flex-shrink-0">
+                            <p class="text-base font-bold text-gray-800">${eurFmt.format(price)}</p>
+                            ${ytdStr ? `<span class="text-xs font-semibold px-2 py-0.5 rounded-full border ${ytdClass}">${ytdStr} YTD</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="flex gap-0.5 bg-gray-100 p-0.5 rounded-lg text-xs self-start">${btns}</div>
+                    <div class="relative flex-1 min-h-[180px]"><canvas id="home-chart-${tidSafe}"></canvas></div>
+                    <div class="flex justify-between text-[10px] text-gray-400 px-1">
+                        <span id="home-min-${tidSafe}">-</span>
+                        <span id="home-max-${tidSafe}">-</span>
+                    </div>
+                </div>`;
+            }).join('');
+
+            positions.forEach(p => {
+                const tidSafe = p.ticker.replace(/[^a-zA-Z0-9]/g, '_');
+                const el = document.getElementById('home-chart-' + tidSafe);
+                if (el) { _buildHomeChart(p.ticker, el); _updateHomeChart(p.ticker, '1y'); }
+            });
+        };
 
         window.updateCompoundChart = function() {
             const years   = Math.min(Math.max(parseInt(document.getElementById('compound-years')?.value)   || 10,  1), 50);
@@ -2559,6 +2701,7 @@
             renderBudget();
             ['pea', 'cto'].forEach(p => window.updateDividendUI(p));
             if (document.getElementById('budget-view-history')?.classList.contains('block')) renderBudgetHistory();
+            if (currentTab === 'home') window.renderHomePage();
         };
 
         // ==========================================
@@ -2848,8 +2991,11 @@
                 document.getElementById('btn-bourse-recap')?.classList.add('nav-active');
                 if (tabId === 'pea') document.getElementById('btn-pea')?.classList.add('subnav-active'); if (tabId === 'cto') document.getElementById('btn-cto')?.classList.add('subnav-active');
                 if(!liveUpdateInterval) liveUpdateInterval = setInterval(fetchLivePrices, 60000);
-            } else { 
-                document.getElementById('btn-' + tabId)?.classList.add('nav-active'); 
+            } else if (tabId === 'home') {
+                if(!liveUpdateInterval) liveUpdateInterval = setInterval(fetchLivePrices, 60000);
+                window.renderHomePage();
+            } else {
+                document.getElementById('btn-' + tabId)?.classList.add('nav-active');
                 if(liveUpdateInterval) { clearInterval(liveUpdateInterval); liveUpdateInterval = null; }
             }
             const mob = document.getElementById('mobile-nav'); if (mob && mob.value !== tabId) mob.value = tabId;
@@ -2911,6 +3057,8 @@
                 } else if (tabId === 'bourse-recap') {
                     Object.values(pieCharts).forEach(c => c?.resize());
                     recapCompoundChart?.resize();
+                } else if (tabId === 'home') {
+                    Object.values(homeCharts).forEach(c => c?.resize());
                 }
             });
         };
