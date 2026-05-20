@@ -33,6 +33,12 @@
         .modal-enter { animation: modalEnterAnim 0.2s ease-out forwards; }
         .fab-menu { transition: all 0.2s ease-in-out; transform-origin: bottom right; transform: scale(0); opacity: 0; pointer-events: none; }
         .fab-menu.active { transform: scale(1); opacity: 1; pointer-events: auto; }
+        /* Home page : plein écran sans scroll externe */
+        #tab-home { overflow: hidden; height: calc(100dvh - 64px); }
+        @media (min-width: 1024px) { #tab-home { height: 100dvh; } }
+        .home-col-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #e2e8f0 transparent; }
+        .home-col-scroll::-webkit-scrollbar { width: 4px; }
+        .home-col-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
     </style>
 </head>
 <body class="flex h-screen overflow-hidden text-gray-800 relative">
@@ -126,22 +132,42 @@
             </header>
 
             <!-- ==================== ACCUEIL ==================== -->
-            <section id="tab-home" class="p-4 md:p-8 tab-content hidden">
-                <div class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <section id="tab-home" class="tab-content hidden flex-col p-4 md:p-5 gap-4">
+                <!-- Header compact -->
+                <div class="flex justify-between items-center flex-shrink-0">
                     <div>
-                        <h2 class="text-2xl font-bold text-gray-800 mb-1">Bonjour, <span id="home-username">vous</span> 👋</h2>
-                        <p class="text-sm text-gray-500">Voici l'évolution de vos actions en portefeuille</p>
+                        <h2 class="text-xl font-bold text-gray-800">Bonjour, <span id="home-username">vous</span> 👋</h2>
+                        <p class="text-xs text-gray-400 mt-0.5">Cours en temps réel de vos actions</p>
                     </div>
                     <div class="flex items-center gap-2 text-xs font-medium text-gray-500 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100">
-                        <span class="relative flex h-2 w-2">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                        </span>
+                        <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>
                         Données en direct
                     </div>
                 </div>
-                <div id="home-stocks-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    <div class="col-span-full text-center text-gray-400 py-16 italic">Aucune action dans vos portefeuilles.</div>
+                <!-- Deux colonnes PEA | CTO -->
+                <div class="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Colonne PEA -->
+                    <div class="flex flex-col min-h-0">
+                        <div class="flex items-center gap-2 mb-3 flex-shrink-0">
+                            <div class="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center"><i class="ph-bold ph-briefcase text-blue-600 text-sm"></i></div>
+                            <h3 class="font-bold text-gray-700">PEA</h3>
+                            <span id="home-pea-count" class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">0 action</span>
+                        </div>
+                        <div id="home-pea-grid" class="home-col-scroll flex-1 min-h-0 flex flex-col gap-3 pb-2">
+                            <div class="text-center text-gray-400 py-8 italic text-sm">Aucune action dans votre PEA.</div>
+                        </div>
+                    </div>
+                    <!-- Colonne CTO -->
+                    <div class="flex flex-col min-h-0 sm:border-l sm:border-gray-100 sm:pl-4">
+                        <div class="flex items-center gap-2 mb-3 flex-shrink-0">
+                            <div class="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center"><i class="ph-bold ph-globe-hemisphere-west text-purple-600 text-sm"></i></div>
+                            <h3 class="font-bold text-gray-700">CTO</h3>
+                            <span id="home-cto-count" class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">0 action</span>
+                        </div>
+                        <div id="home-cto-grid" class="home-col-scroll flex-1 min-h-0 flex flex-col gap-3 pb-2">
+                            <div class="text-center text-gray-400 py-8 italic text-sm">Aucune action dans votre CTO.</div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -1114,121 +1140,117 @@
         // ==========================================
         // HOME PAGE — Graphiques par action
         // ==========================================
-        function _buildHomeChart(ticker, canvasEl) {
-            if (homeCharts[ticker]) { try { homeCharts[ticker].destroy(); } catch(e){} }
-            const color = colorMap[ticker] || '#3b82f6';
-            homeCharts[ticker] = new Chart(canvasEl.getContext('2d'), {
+        // chartKey = ticker + '_pea' ou ticker + '_cto' pour distinguer les instances
+        function _buildHomeChart(chartKey, canvasEl, color) {
+            if (homeCharts[chartKey]) { try { homeCharts[chartKey].destroy(); } catch(e){} }
+            const c = color || '#3b82f6';
+            homeCharts[chartKey] = new Chart(canvasEl.getContext('2d'), {
                 type: 'line',
-                data: { labels: [], datasets: [{ data: [], borderColor: color, backgroundColor: color + '18', borderWidth: 2.5, pointRadius: 0, tension: 0.35, fill: true }] },
+                data: { labels: [], datasets: [{ data: [], borderColor: c, backgroundColor: c + '18', borderWidth: 2.5, pointRadius: 0, tension: 0.35, fill: true }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     scales: {
                         x: { display: false },
-                        y: { display: true, position: 'right', ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(0), font: { size: 9 }, maxTicksLimit: 5 }, grid: { color: '#f3f4f620' } }
+                        y: { display: true, position: 'right', ticks: { callback: v => v >= 1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(0), font: { size: 9 }, maxTicksLimit: 4 }, grid: { color: '#f3f4f620' } }
                     },
-                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${eurFmt.format(c.raw)}` } } }
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${eurFmt.format(ctx.raw)}` } } }
                 }
             });
         }
 
-        function _applyHomeChartData(ticker, data) {
-            const chart = homeCharts[ticker]; if (!chart) return;
-            const history = data.history || [];
-            const timestamps = data.timestamps || [];
+        function _applyHomeChartData(chartKey, data) {
+            const chart = homeCharts[chartKey]; if (!chart) return;
+            const history = data.history || [], timestamps = data.timestamps || [];
             if (!history.length) return;
-            const labels = timestamps.map(ts => {
-                const d = new Date(ts * 1000);
-                return d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
-            });
-            chart.data.labels = labels;
+            chart.data.labels = timestamps.map(ts => new Date(ts * 1000).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }));
             chart.data.datasets[0].data = history;
             chart.update('none');
-            const tidSafe = ticker.replace(/[^a-zA-Z0-9]/g, '_');
-            const minEl = document.getElementById('home-min-' + tidSafe);
-            const maxEl = document.getElementById('home-max-' + tidSafe);
+            const minEl = document.getElementById('home-min-' + chartKey);
+            const maxEl = document.getElementById('home-max-' + chartKey);
             if (minEl) minEl.innerText = 'Min ' + eurFmt.format(Math.min(...history));
             if (maxEl) maxEl.innerText = 'Max ' + eurFmt.format(Math.max(...history));
         }
 
-        async function _updateHomeChart(ticker, range) {
+        async function _updateHomeChart(ticker, range, chartKey) {
             const cached = chartCache[ticker]?.[range];
-            if (cached) { _applyHomeChartData(ticker, cached); return; }
+            if (cached) { _applyHomeChartData(chartKey, cached); return; }
             await fetchChartHistory(ticker, range);
             const fresh = chartCache[ticker]?.[range];
-            if (fresh) _applyHomeChartData(ticker, fresh);
+            if (fresh) _applyHomeChartData(chartKey, fresh);
         }
 
-        window.changeHomeRange = function(ticker, range, btn) {
-            const tidSafe = ticker.replace(/[^a-zA-Z0-9]/g, '_');
+        window.changeHomeRange = function(ticker, range, btn, tidSafe) {
             document.querySelectorAll(`[data-home-ticker="${tidSafe}"]`).forEach(b => {
                 b.classList.remove('bg-white', 'shadow-sm', 'text-blue-600', 'font-bold');
-                b.classList.add('text-gray-500');
+                b.classList.add('text-gray-400');
             });
-            btn.classList.remove('text-gray-500');
+            btn.classList.remove('text-gray-400');
             btn.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'font-bold');
-            _updateHomeChart(ticker, range);
+            _updateHomeChart(ticker, range, tidSafe);
         };
 
         window.renderHomePage = function() {
-            const grid = document.getElementById('home-stocks-grid'); if (!grid) return;
             const nameEl = document.getElementById('home-username'); if (nameEl) nameEl.innerText = currentUsername || 'vous';
 
-            const peaPos = getAggregatedPositions('pea').positions;
-            const ctoPos = getAggregatedPositions('cto').positions;
-            const seen = new Set();
-            const positions = [];
-            [...peaPos, ...ctoPos].forEach(p => { if (!seen.has(p.ticker)) { seen.add(p.ticker); positions.push({ ...p, port: ctoPos.some(c => c.ticker === p.ticker) && !peaPos.some(c => c.ticker === p.ticker) ? 'CTO' : peaPos.some(c => c.ticker === p.ticker) && ctoPos.some(c => c.ticker === p.ticker) ? 'PEA+CTO' : peaPos.some(c => c.ticker === p.ticker) ? 'PEA' : 'CTO' }); } });
-
-            if (!positions.length) {
-                grid.innerHTML = '<div class="col-span-full text-center text-gray-400 py-16 italic">Aucune action dans vos portefeuilles.</div>';
-                return;
-            }
+            const peaPos  = getAggregatedPositions('pea').positions;
+            const ctoPos  = getAggregatedPositions('cto').positions;
 
             Object.values(homeCharts).forEach(c => { try { c?.destroy(); } catch(e){} });
             homeCharts = {};
 
             const ranges = [{ r: '1y', l: '1A' }, { r: '2y', l: '2A' }, { r: '5y', l: '5A' }, { r: '10y', l: '10A' }, { r: 'max', l: 'Max' }];
 
-            grid.innerHTML = positions.map(p => {
-                const db = stockDatabase[p.ticker] || {};
+            function makeCard(p, suffix) {
+                const db  = stockDatabase[p.ticker] || {};
                 const price = db.currentPrice || p.pru || 0;
-                const ytd = db.ytd;
-                const ytdStr = ytd != null ? ((ytd > 0 ? '+' : '') + pctFmt.format(ytd)) : null;
-                const ytdClass = ytd != null ? (ytd >= 0 ? 'text-green-600 bg-green-50 border-green-100' : 'text-red-600 bg-red-50 border-red-100') : 'text-gray-400 bg-gray-50 border-gray-100';
-                const tidSafe = p.ticker.replace(/[^a-zA-Z0-9]/g, '_');
-                const portColors = { 'PEA': 'bg-blue-100 text-blue-700', 'CTO': 'bg-purple-100 text-purple-700', 'PEA+CTO': 'bg-indigo-100 text-indigo-700' };
-                const portColor = portColors[p.port] || 'bg-gray-100 text-gray-600';
-                const btns = ranges.map((rv, i) => `<button onclick="window.changeHomeRange('${p.ticker}', '${rv.r}', this)" data-home-ticker="${tidSafe}" class="px-2 py-1 rounded transition-colors ${i === 0 ? 'bg-white shadow-sm text-blue-600 font-bold' : 'text-gray-500 hover:bg-gray-200'}">${rv.l}</button>`).join('');
+                const ytd   = db.ytd;
+                const ytdStr  = ytd != null ? ((ytd > 0 ? '+' : '') + pctFmt.format(ytd)) : null;
+                const ytdClass = ytd != null ? (ytd >= 0 ? 'text-green-600 bg-green-50 border-green-100' : 'text-red-600 bg-red-50 border-red-100') : '';
+                const tidSafe  = p.ticker.replace(/[^a-zA-Z0-9]/g, '_') + suffix;
+                const btns = ranges.map((rv, i) => `<button onclick="window.changeHomeRange('${p.ticker}','${rv.r}',this,'${tidSafe}')" data-home-ticker="${tidSafe}" class="px-1.5 py-0.5 rounded transition-colors text-[10px] ${i === 0 ? 'bg-white shadow-sm text-blue-600 font-bold' : 'text-gray-400 hover:bg-gray-200'}">${rv.l}</button>`).join('');
                 return `
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex flex-col gap-3">
-                    <div class="flex justify-between items-start gap-3">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2 flex-shrink-0">
+                    <div class="flex justify-between items-center gap-2">
                         <div class="min-w-0 flex-1">
-                            <div class="flex items-center gap-2 flex-wrap mb-0.5">
-                                <span class="font-bold text-gray-800 truncate">${p.name}</span>
-                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full ${portColor} flex-shrink-0">${p.port}</span>
-                            </div>
-                            <p class="text-xs text-gray-400">${p.ticker}${db.exchange && db.exchange !== '-' ? ' · ' + db.exchange : ''}</p>
+                            <p class="font-bold text-gray-800 text-sm truncate leading-tight">${p.name}</p>
+                            <p class="text-[10px] text-gray-400 leading-tight">${p.ticker}${db.exchange && db.exchange !== '-' ? ' · ' + db.exchange : ''}</p>
                         </div>
                         <div class="text-right flex-shrink-0">
-                            <p class="text-base font-bold text-gray-800">${eurFmt.format(price)}</p>
-                            ${ytdStr ? `<span class="text-xs font-semibold px-2 py-0.5 rounded-full border ${ytdClass}">${ytdStr} YTD</span>` : ''}
+                            <p class="font-bold text-gray-800 text-sm">${eurFmt.format(price)}</p>
+                            ${ytdStr ? `<span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${ytdClass}">${ytdStr}</span>` : ''}
                         </div>
                     </div>
-                    <div class="flex gap-0.5 bg-gray-100 p-0.5 rounded-lg text-xs self-start">${btns}</div>
-                    <div class="relative flex-1 min-h-[180px]"><canvas id="home-chart-${tidSafe}"></canvas></div>
-                    <div class="flex justify-between text-[10px] text-gray-400 px-1">
+                    <div class="flex gap-0.5 bg-gray-100 p-0.5 rounded text-[10px] self-start">${btns}</div>
+                    <div class="relative" style="flex:1;min-height:120px"><canvas id="home-chart-${tidSafe}"></canvas></div>
+                    <div class="flex justify-between text-[10px] text-gray-400 px-0.5">
                         <span id="home-min-${tidSafe}">-</span>
                         <span id="home-max-${tidSafe}">-</span>
                     </div>
                 </div>`;
-            }).join('');
+            }
 
-            positions.forEach(p => {
-                const tidSafe = p.ticker.replace(/[^a-zA-Z0-9]/g, '_');
-                const el = document.getElementById('home-chart-' + tidSafe);
-                if (el) { _buildHomeChart(p.ticker, el); _updateHomeChart(p.ticker, '1y'); }
-            });
+            const peaGrid = document.getElementById('home-pea-grid');
+            const ctoGrid = document.getElementById('home-cto-grid');
+            const peaCount = document.getElementById('home-pea-count');
+            const ctoCount = document.getElementById('home-cto-count');
+
+            if (peaGrid) {
+                peaGrid.innerHTML = peaPos.length ? peaPos.map(p => makeCard(p, '_pea')).join('') : '<div class="text-center text-gray-400 py-8 italic text-sm">Aucune action dans votre PEA.</div>';
+                if (peaCount) peaCount.innerText = peaPos.length + ' action' + (peaPos.length > 1 ? 's' : '');
+                peaPos.forEach(p => {
+                    const el = document.getElementById('home-chart-' + p.ticker.replace(/[^a-zA-Z0-9]/g, '_') + '_pea');
+                    if (el) { _buildHomeChart(p.ticker + '_pea', el, colorMap[p.ticker]); _updateHomeChart(p.ticker, '1y', p.ticker + '_pea'); }
+                });
+            }
+            if (ctoGrid) {
+                ctoGrid.innerHTML = ctoPos.length ? ctoPos.map(p => makeCard(p, '_cto')).join('') : '<div class="text-center text-gray-400 py-8 italic text-sm">Aucune action dans votre CTO.</div>';
+                if (ctoCount) ctoCount.innerText = ctoPos.length + ' action' + (ctoPos.length > 1 ? 's' : '');
+                ctoPos.forEach(p => {
+                    const el = document.getElementById('home-chart-' + p.ticker.replace(/[^a-zA-Z0-9]/g, '_') + '_cto');
+                    if (el) { _buildHomeChart(p.ticker + '_cto', el, colorMap[p.ticker]); _updateHomeChart(p.ticker, '1y', p.ticker + '_cto'); }
+                });
+            }
         };
 
         window.updateCompoundChart = function() {
@@ -2984,8 +3006,8 @@
         // ==========================================
         window.switchTab = function(tabId) {
             currentTab = tabId;
-            document.querySelectorAll('.tab-content').forEach(el => { el.classList.add('hidden'); el.classList.remove('block'); });
-            const target = document.getElementById('tab-' + tabId); if (target) { target.classList.remove('hidden'); target.classList.add('block'); }
+            document.querySelectorAll('.tab-content').forEach(el => { el.classList.add('hidden'); el.classList.remove('block', 'flex'); });
+            const target = document.getElementById('tab-' + tabId); if (target) { target.classList.remove('hidden'); target.classList.add(tabId === 'home' ? 'flex' : 'block'); }
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('nav-active', 'subnav-active'));
             if (['pea','cto','bourse-recap'].includes(tabId)) {
                 document.getElementById('btn-bourse-recap')?.classList.add('nav-active');
