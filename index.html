@@ -1067,6 +1067,34 @@
         const CHART_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
         const MARKET_CACHE_MAX_AGE = 60 * 60 * 1000; // 1 heure
 
+        // Données de dividendes vérifiées manuellement — prioritaires sur l'API
+        const MANUAL_DIV_OVERRIDES = {
+            'TTE.PA': { annual: 3.40,  freq: 4  },
+            'AI.PA':  { annual: 3.70,  freq: 1  },
+            'CS.PA':  { annual: 2.32,  freq: 1  },
+            'DG.PA':  { annual: 5.00,  freq: 2  },
+            'VIE.PA': { annual: 1.50,  freq: 1  },
+            'GOOGL':  { annual: 0.88,  freq: 4  },
+            'V':      { annual: 2.68,  freq: 4  },
+            'O':      { annual: 3.234, freq: 12 },
+            'MSFT':   { annual: 3.64,  freq: 4  },
+            'NVDA':   { annual: 0.04,  freq: 4  },
+            'JEPQ.L': { annual: 2.64,  freq: 12 },
+        };
+
+        function applyManualDivOverrides() {
+            Object.entries(MANUAL_DIV_OVERRIDES).forEach(([ticker, divOverride]) => {
+                const db = stockDatabase[ticker];
+                if (!db) return;
+                const price = db.currentPrice || 0;
+                db.div = {
+                    annual: divOverride.annual,
+                    freq:   divOverride.freq,
+                    yield:  (price > 0 && divOverride.annual > 0) ? divOverride.annual / price : (db.div?.yield || 0),
+                };
+            });
+        }
+
         function saveMarketCache() {
             if (!currentUsername) return;
             try {
@@ -1095,6 +1123,8 @@
                     }
                 });
                 Object.entries(charts || {}).forEach(([t, ranges]) => { chartCache[t] = ranges; });
+                // Réappliquer les dividendes vérifiés manuellement par-dessus le cache
+                applyManualDivOverrides();
                 return applied;
             } catch(e) { return false; }
         }
@@ -2331,6 +2361,13 @@
                 }
             }
 
+            // Réapplication des dividendes vérifiés manuellement (prioritaires sur les données API)
+            if (MANUAL_DIV_OVERRIDES[ticker]) {
+                const price = stockDatabase[ticker].currentPrice || 0;
+                const ov = MANUAL_DIV_OVERRIDES[ticker];
+                stockDatabase[ticker].div = { annual: ov.annual, freq: ov.freq, yield: price > 0 && ov.annual > 0 ? ov.annual / price : 0 };
+            }
+
             // Persist to cache
             if (!chartCache[ticker]) chartCache[ticker] = {};
             chartCache[ticker][range] = {
@@ -2353,6 +2390,12 @@
             if (cached.div) db.div = cached.div;
             if (cached.currentPrice && range === '1y') db.currentPrice = cached.currentPrice;
             if (cached.exchange && (!db.exchange || db.exchange === '-')) db.exchange = cached.exchange;
+            // Réappliquer les overrides manuels si ce ticker en a
+            if (MANUAL_DIV_OVERRIDES[ticker]) {
+                const price = db.currentPrice || 0;
+                const ov = MANUAL_DIV_OVERRIDES[ticker];
+                db.div = { annual: ov.annual, freq: ov.freq, yield: price > 0 && ov.annual > 0 ? ov.annual / price : 0 };
+            }
         }
 
         function refreshAnalysisPanel() {
@@ -2393,6 +2436,9 @@
             }
             // Cours via TradingView (fonctionne depuis Render pour EU + US)
             await fetchTvPrices();
+
+            // Réapplication des dividendes vérifiés manuellement (prioritaires sur l'API)
+            applyManualDivOverrides();
 
             // Rendu immédiat dès que les cours sont là
             window.renderDashboard();
