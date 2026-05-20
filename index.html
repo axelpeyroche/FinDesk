@@ -69,7 +69,7 @@
     </div>
 
     <div id="app-container" class="hidden w-full h-full relative">
-        <aside class="w-64 bg-white shadow-lg flex-col hidden md:flex z-10 overflow-y-auto">
+        <aside class="w-64 bg-white shadow-lg flex-col hidden lg:flex z-10 overflow-y-auto">
             <div class="h-20 flex items-center px-8 border-b border-gray-100 flex-shrink-0">
                 <i class="ph-fill ph-chart-polar text-3xl text-blue-600 mr-3"></i>
                 <h1 class="text-xl font-bold text-gray-800 tracking-tight">FinDesk</h1>
@@ -107,7 +107,7 @@
         </aside>
 
         <main class="flex-1 overflow-y-auto relative bg-gray-50 pb-10">
-            <header class="md:hidden bg-white shadow-sm p-4 flex justify-between items-center sticky top-0 z-20">
+            <header class="lg:hidden bg-white shadow-sm p-4 flex justify-between items-center sticky top-0 z-20">
                 <div class="flex items-center">
                     <i class="ph-fill ph-chart-polar text-2xl text-blue-600 mr-2"></i>
                     <h1 class="text-lg font-bold">FinDesk</h1>
@@ -176,7 +176,7 @@
                     </div>
                 </div>
                 
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-center">
                         <h3 class="text-sm font-bold text-gray-700 mb-4 text-center">Bilan des portefeuilles</h3>
                         <div class="flex items-center justify-between p-4 border-b border-gray-50 cursor-pointer hover:bg-blue-50 rounded-lg transition-colors group" onclick="window.switchTab('pea')">
@@ -305,15 +305,15 @@
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Total dividendes</p><p id="pea-kpi-div" class="text-lg font-bold text-gray-800">0,00 €</p></div>
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Ratio dividendes</p><p id="pea-kpi-div-ratio" class="text-lg font-bold text-gray-800">0,00 %</p></div>
                 </div>
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-1">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 md:col-span-1">
                         <h3 class="text-sm font-bold text-gray-700 mb-4 text-center">Répartition du portefeuille</h3>
                         <div class="relative w-full" style="height:340px">
                             <canvas id="peaPieChart"></canvas>
                             <p id="pea-empty-pie" class="absolute inset-0 flex items-center justify-center text-sm text-gray-400 italic">Aucune donnée</p>
                         </div>
                     </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2 flex flex-col">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 md:col-span-2 flex flex-col">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
                             <h3 class="text-sm font-bold text-gray-700 flex items-center gap-2">
                                 <i class="ph-bold ph-chart-line-up text-blue-600 text-lg"></i> Analyse de l'action
@@ -460,15 +460,15 @@
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Total dividendes</p><p id="cto-kpi-div" class="text-lg font-bold text-gray-800">0,00 €</p></div>
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100"><p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Ratio dividendes</p><p id="cto-kpi-div-ratio" class="text-lg font-bold text-gray-800">0,00 %</p></div>
                 </div>
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-1">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 md:col-span-1">
                         <h3 class="text-sm font-bold text-gray-700 mb-4 text-center">Répartition du portefeuille</h3>
                         <div class="relative w-full" style="height:340px">
                             <canvas id="ctoPieChart"></canvas>
                             <p id="cto-empty-pie" class="absolute inset-0 flex items-center justify-center text-sm text-gray-400 italic">Aucune donnée</p>
                         </div>
                     </div>
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2 flex flex-col">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 md:col-span-2 flex flex-col">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
                             <h3 class="text-sm font-bold text-gray-700 flex items-center gap-2">
                                 <i class="ph-bold ph-chart-line-up text-blue-600 text-lg"></i> Analyse de l'action
@@ -617,8 +617,8 @@
                             </div>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div class="text-center relative">
                                 <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4">Bilan Cashflow</h4>
                                 <div class="relative w-full h-32 flex justify-center">
@@ -649,9 +649,9 @@
                             <div class="relative w-full flex-1 min-h-[120px]"><canvas id="budgetBarChart"></canvas></div>
                         </div>
                     </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
-                        <div class="lg:col-span-8 flex flex-col gap-6" id="budget-tables-container"></div>
-                        <div class="lg:col-span-4 bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-6 mb-6">
+                        <div class="md:col-span-8 flex flex-col gap-6" id="budget-tables-container"></div>
+                        <div class="md:col-span-4 bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col">
                             <h4 class="text-sm font-bold text-gray-700 uppercase tracking-wide mb-6 text-center">Évolution sur 6 mois</h4>
                             <div class="relative w-full flex-1 min-h-[300px]"><canvas id="budgetEvolChart"></canvas></div>
                         </div>
@@ -673,7 +673,7 @@
                     <h2 class="text-2xl font-bold text-gray-800 flex items-center"><i class="ph-fill ph-shield-star text-purple-600 mr-2 text-3xl"></i> Panel Administration</h2>
                     <p class="text-gray-500 text-sm">Gestion des accès et utilisateurs</p>
                 </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-purple-100 bg-purple-50/30">
                         <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2"><i class="ph-fill ph-user-plus text-purple-600 text-xl"></i> Créer un nouvel utilisateur</h3>
                         <form onsubmit="window.handleCreateUser(event)" class="flex flex-col gap-4">
@@ -723,7 +723,7 @@
                 <button onclick="window.closeTxModal()" class="text-gray-400 hover:text-red-500 transition-colors p-2"><i class="ph-bold ph-x text-2xl"></i></button>
             </div>
             <div class="p-4 md:p-8 overflow-y-auto flex-1 inner-scroll">
-                <form class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" onsubmit="window.handleTransactionSubmit(event)" id="tx-form">
+                <form class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" onsubmit="window.handleTransactionSubmit(event)" id="tx-form">
                     
                     <div id="tx-modal-port-container">
                         <label class="block mb-1 text-sm font-medium text-gray-700">Portefeuille</label>
@@ -743,7 +743,7 @@
                             <option value="Vente">Vente</option>
                         </select>
                     </div>
-                    <div class="col-span-1 lg:col-span-1">
+                    <div class="col-span-1">
                         <label class="block mb-1 text-sm font-medium text-gray-700">Action / ETF</label>
                         <select id="form-stock-select" onchange="window.handleStockSelection(this)" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required>
                             <option value="" disabled selected>Sélectionner une action</option>
@@ -753,7 +753,7 @@
                     </div>
 
                     <!-- Zone recherche live -->
-                    <div id="new-stock-isin-zone" class="hidden col-span-1 lg:col-span-4 relative">
+                    <div id="new-stock-isin-zone" class="hidden col-span-full relative">
                         <label class="block mb-1 text-sm font-medium text-gray-700">Recherche (Nom, Ticker ou ISIN)</label>
                         <div class="relative">
                             <input type="text" id="search-input"
@@ -765,7 +765,7 @@
                             <ul id="search-results" class="autocomplete-results hidden"></ul>
                         </div>
                     </div>
-                    <div id="new-stock-info-zone" class="hidden col-span-1 lg:col-span-4 gap-4 flex flex-col md:flex-row">
+                    <div id="new-stock-info-zone" class="hidden col-span-full gap-4 flex flex-col sm:flex-row">
                         <div class="w-full md:w-2/3">
                             <label class="block mb-1 text-sm font-medium text-gray-700">Nom complet</label>
                             <input type="text" id="new-stock-name" placeholder="Nom de l'entreprise" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
@@ -800,7 +800,7 @@
                             <span class="absolute inset-y-0 right-3 flex items-center text-gray-500 text-sm pointer-events-none">€</span>
                         </div>
                     </div>
-                    <div class="col-span-1 lg:col-span-4 border-t border-gray-200 mt-4 pt-6 flex flex-col sm:flex-row justify-end gap-3">
+                    <div class="col-span-full border-t border-gray-200 mt-4 pt-6 flex flex-col sm:flex-row justify-end gap-3">
                         <button type="button" id="btn-delete-tx" class="hidden text-white bg-red-600 hover:bg-red-700 font-medium rounded-lg text-base px-6 py-3 transition-colors order-2 sm:order-none" onclick="window.deleteTransaction()"><i class="ph-bold ph-trash"></i> Supprimer</button>
                         <button type="button" class="text-gray-600 bg-gray-100 hover:bg-gray-200 font-medium rounded-lg text-base px-6 py-3 transition-colors order-3 sm:order-none" onclick="window.closeTxModal()">Annuler</button>
                         <button type="submit" id="btn-submit-tx" class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-base px-8 py-3 transition-colors flex items-center justify-center gap-2 order-1 sm:order-none shadow-md shadow-blue-500/30">
@@ -908,7 +908,7 @@
                 <button onclick="window.closeBudgetModal()" class="text-gray-400 hover:text-red-500 transition-colors p-2"><i class="ph-bold ph-x text-2xl"></i></button>
             </div>
             <div class="p-4 md:p-8 overflow-y-auto flex-1 inner-scroll">
-                <form class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6" id="budget-tx-form" onsubmit="window.addBudgetMovement(event)">
+                <form class="grid grid-cols-1 sm:grid-cols-2 gap-6" id="budget-tx-form" onsubmit="window.addBudgetMovement(event)">
                     <div>
                         <label class="block mb-1 text-sm font-medium text-gray-700">Date</label>
                         <input type="date" name="date" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required>
@@ -934,11 +934,11 @@
                             <span class="absolute inset-y-0 right-3 flex items-center text-gray-500 text-base pointer-events-none">€</span>
                         </div>
                     </div>
-                    <div class="col-span-1 lg:col-span-2">
+                    <div class="col-span-full">
                         <label class="block mb-1 text-sm font-medium text-gray-700">Détails (Optionnel)</label>
                         <input type="text" name="details" placeholder="Ex: Auchan drive, loyer appartement..." class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                     </div>
-                    <div class="col-span-1 lg:col-span-2">
+                    <div class="col-span-full">
                         <label class="block mb-1 text-sm font-medium text-gray-700">Carte Bancaire / Compte</label>
                         <select name="bank" class="bg-white border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" required>
                             <option value="Banque Populaire">Banque Populaire</option>
@@ -946,7 +946,7 @@
                             <option value="Bourso Bank">Bourso Bank</option>
                         </select>
                     </div>
-                    <div class="col-span-1 lg:col-span-2 border-t border-gray-200 mt-4 pt-6 flex flex-col sm:flex-row justify-end gap-3">
+                    <div class="col-span-full border-t border-gray-200 mt-4 pt-6 flex flex-col sm:flex-row justify-end gap-3">
                         <button type="button" class="text-gray-600 bg-gray-100 hover:bg-gray-200 font-medium rounded-lg text-base px-6 py-3 transition-colors order-2 sm:order-none" onclick="window.closeBudgetModal()">Annuler</button>
                         <button type="submit" id="budget-btn-submit" class="text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-lg text-base px-8 py-3 transition-colors flex items-center justify-center gap-2 order-1 sm:order-none shadow-md shadow-blue-500/30">
                             <i class="ph-bold ph-check"></i> Enregistrer
@@ -976,7 +976,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ==========================================
         // 1. VARIABLES GLOBALES & ETAT
@@ -2634,13 +2634,13 @@
             }));
 
             if (!db || !auth.currentUser) return;
-            try { await setDoc(doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'user_finances', currentUsername), dataToSave); } catch (e) { console.error(e); }
+            try { await setDoc(doc(db, 'artifacts', appId, 'user_data', currentUsername), dataToSave); } catch (e) { console.error(e); }
         };
 
         function listenToUserData() {
             if (!db || !auth.currentUser || !currentUsername) { window.renderDashboard(); return; }
-            const ref = doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'user_finances', currentUsername);
-            onSnapshot(ref, snap => {
+            const newRef = doc(db, 'artifacts', appId, 'user_data', currentUsername);
+            onSnapshot(newRef, snap => {
                 if (snap.exists()) {
                     const d = snap.data();
                     if (d.transactions) allTransactions = typeof d.transactions === 'string' ? JSON.parse(d.transactions) : d.transactions;
@@ -2648,8 +2648,18 @@
                     if (d.budget) allBudgetMovements = typeof d.budget === 'string' ? JSON.parse(d.budget) : d.budget;
                     if (d.goal) portfolioGoal = d.goal;
                     localStorage.setItem(`fin_data_${currentUsername}`, JSON.stringify({ transactions: allTransactions, dividends: allDividends, budget: allBudgetMovements, goal: portfolioGoal }));
-                } else { window.saveDataToFirebase(); }
-                window.renderDashboard();
+                    window.renderDashboard();
+                } else {
+                    // Migration : tente de récupérer les données depuis l'ancien chemin (UID anonyme)
+                    const oldRef = doc(db, 'artifacts', appId, 'users', auth.currentUser.uid, 'user_finances', currentUsername);
+                    getDoc(oldRef).then(oldSnap => {
+                        if (oldSnap.exists()) {
+                            setDoc(newRef, oldSnap.data()); // déclenche onSnapshot avec les données migrées
+                        } else {
+                            window.saveDataToFirebase(); // initialise le nouveau chemin
+                        }
+                    }).catch(() => window.saveDataToFirebase());
+                }
             }, err => console.error("Erreur de récupération:", err));
         }
 
@@ -2677,7 +2687,7 @@
                 
                 onAuthStateChanged(auth, user => {
                     if (!user) return;
-                    const authRef = doc(db, 'artifacts', appId, 'users', user.uid, 'app_config', 'auth_users');
+                    const authRef = doc(db, 'artifacts', appId, 'app_config', 'auth_users');
                     onSnapshot(authRef, snap => {
                         if (snap.exists()) authUsersDict = snap.data().users || {};
                         const su = localStorage.getItem('fin_user');
@@ -2702,7 +2712,7 @@
             const perms={pea:document.getElementById('perm-pea').checked,cto:document.getElementById('perm-cto').checked,budget:document.getElementById('perm-budget').checked};
             authUsersDict[user]={pass,email,perms};
             if(db && auth.currentUser){
-                const ref=doc(db,'artifacts',appId,'users',auth.currentUser.uid,'app_config','auth_users');
+                const ref=doc(db,'artifacts',appId,'app_config','auth_users');
                 await setDoc(ref,{users:authUsersDict});
                 renderAdminUsers();
                 e.target.reset();
@@ -2783,7 +2793,7 @@
             if(originalId !== newId) delete authUsersDict[originalId];
             authUsersDict[newId] = { pass: newPass, email: newEmail, perms };
             if(db && auth.currentUser) {
-                const ref = doc(db,'artifacts',appId,'users',auth.currentUser.uid,'app_config','auth_users');
+                const ref = doc(db,'artifacts',appId,'app_config','auth_users');
                 await setDoc(ref, { users: authUsersDict });
             }
             window.closeEditUserModal();
@@ -2795,7 +2805,7 @@
             if(!confirm(`Supprimer définitivement le compte "${username}" ?`)) return;
             delete authUsersDict[username];
             if(db && auth.currentUser) {
-                const ref = doc(db,'artifacts',appId,'users',auth.currentUser.uid,'app_config','auth_users');
+                const ref = doc(db,'artifacts',appId,'app_config','auth_users');
                 await setDoc(ref, { users: authUsersDict });
             }
             renderAdminUsers();
