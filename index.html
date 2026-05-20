@@ -1717,9 +1717,7 @@
             
             let totalDivs = 0, divHistPEA = 0, divHistCTO = 0;
             allDividends.forEach(d => {
-                const db = stockDatabase[d.ticker];
-                let amt = d.amount;
-                if (db && db.currency === 'USD') amt = amt * usdToEurRate;
+                const amt = d.amount;
                 totalDivs += amt;
                 if (d.port === 'pea') divHistPEA += amt; else divHistCTO += amt;
             });
@@ -1836,10 +1834,7 @@
             const yieldPct = totalInvested > 0 ? profit / totalInvested : 0;
             
             let div = 0;
-            allDividends.filter(d => d.port === port).forEach(d => {
-                const db = stockDatabase[d.ticker];
-                let amt = d.amount; if (db && db.currency === 'USD') amt *= usdToEurRate; div += amt;
-            });
+            allDividends.filter(d => d.port === port).forEach(d => { div += d.amount; });
 
             document.getElementById(`${port}-kpi-invest`).innerText = eurFmt.format(totalInvested);
             document.getElementById(`${port}-kpi-val`).innerText = eurFmt.format(totalVal);
@@ -2184,7 +2179,7 @@
                         let sum = 0;
                         filteredDivs.forEach(d => {
                             if (d.ticker === ticker && new Date(d.date).getFullYear() === y) {
-                                let amt = d.amount; if(db && db.currency === 'USD') amt *= usdToEurRate; sum += amt;
+                                sum += d.amount;
                             }
                         });
                         return sum;
@@ -2220,7 +2215,7 @@
                 else {
                     filtered.forEach(d => {
                         const db = stockDatabase[d.ticker]; const name = db?.name || d.ticker;
-                        let amt = d.amount; if(db && db.currency === 'USD') amt *= usdToEurRate; total += amt;
+                        const amt = d.amount; total += amt;
                         html += `<tr class="border-b border-gray-50 hover:bg-gray-100"><td class="px-4 py-3 text-center flex gap-2 justify-center"><i class="ph-bold ph-pencil-simple cursor-pointer text-blue-500 hover:text-blue-700" onclick="window.editDividend('${d.id}','${port}')"></i><i class="ph-bold ph-trash cursor-pointer text-red-500 hover:text-red-700" onclick="window.deleteDividend('${d.id}','${port}')"></i></td><td class="px-4 py-3 font-semibold">${new Date(d.date).toLocaleDateString('fr-FR')}</td><td class="px-4 py-3 text-gray-600">${name}</td><td class="px-4 py-3 text-right font-medium text-green-600">+ ${eurFmt.format(amt)}</td></tr>`;
                     });
                 }
